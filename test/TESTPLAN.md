@@ -11,6 +11,28 @@ Tests for **Milestone 1 - Base Infrastructure**:
 - System pods running (CoreDNS, Traefik, Metrics Server)
 - Application namespace creation
 
+### t2-multi-node.py
+Tests for **Milestone 2 - Multi-node Application Deployment**:
+- Application deployment configuration and replica count
+- Pod distribution across multiple nodes
+- Service configuration and endpoints
+- Ingress routing configuration
+- HPA (Horizontal Pod Autoscaler) setup
+- Application accessibility through ingress
+- Resource limits and requests validation
+- Health checks (readiness and liveness probes)
+
+### t3-nginx-access.py
+Tests for **NGINX Application Access and Performance**:
+- HTTP response validation (200 status code)
+- NGINX content verification (welcome page)
+- Response headers validation
+- Load balancing across multiple pods
+- Service endpoint health checks
+- Ingress routing functionality
+- Basic performance and response time testing
+- Concurrent request handling
+
 ### Running Tests
 
 **Install dependencies:**
@@ -20,17 +42,29 @@ pip3 install -r test/requirements.txt
 
 **Manual execution:**
 ```bash
-# Run infrastructure tests with pytest
+# Run infrastructure tests
 pytest test/t1-infrastructure.py -v
 
-# Run with specific output format
-pytest test/t1-infrastructure.py -v --tb=short
+# Run multi-node deployment tests
+pytest test/t2-multi-node.py -v
+
+# Run NGINX access tests
+pytest test/t3-nginx-access.py -v
+
+# Run all tests
+pytest test/ -v
 ```
 
 **Automated execution:**
 ```bash
-# Run all tests for Milestone 1 (includes setup)
+# Run Milestone 1 tests (includes setup)
 ./test/run-t1-tests.sh
+
+# Run Milestone 2 tests (includes deployment)
+./test/run-t2-tests.sh
+
+# Run NGINX access tests (includes deployment)
+./test/run-t3-tests.sh
 ```
 
 ## Test Requirements
@@ -39,6 +73,7 @@ pytest test/t1-infrastructure.py -v --tb=short
 - pytest (installed via requirements.txt)
 - kubectl configured and cluster accessible
 - Cluster must be running (use `./scripts/setup-cluster.sh`)
+- For t2 tests: Application must be deployed (automatic via test runner)
 
 ## Test Output
 
