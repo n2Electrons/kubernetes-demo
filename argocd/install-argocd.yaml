@@ -1,0 +1,46 @@
+# Argo CD Installation Manifest
+# This installs Argo CD in the argocd namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: argocd
+---
+# Install Argo CD using the stable release
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-install-script
+  namespace: argocd
+data:
+  install.sh: |
+    #!/bin/bash
+    set -e
+    
+    echo "Installing Argo CD..."
+    
+    # Apply the Argo CD installation manifest
+    kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+    
+    # Wait for Argo CD to be ready
+    echo "Waiting for Argo CD to be ready..."
+    kubectl wait --for=condition=available --timeout=300s deployment/argocd-server -n argocd
+    kubectl wait --for=condition=available --timeout=300s deployment/argocd-applicationset-controller -n argocd
+    kubectl wait --for=condition=available --timeout=300s deployment/argocd-repo-server -n argocd
+    
+    echo "Argo CD installation complete!"
+    
+    # Get initial admin password
+    echo "Getting initial admin password..."
+    ARGO_PWD=$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d)
+    echo "Argo CD Admin Password: $ARGO_PWD"
+    
+    # Port forward instructions
+    echo ""
+    echo "To access Argo CD UI:"
+    echo "1. Run: kubectl port-forward svc/argocd-server -n argocd 8080:443"
+    echo "2. Open: https://localhost:8080"
+    echo "3. Login with:"
+    echo "   Username: admin"
+    echo "   Password: $ARGO_PWD"
+    echo ""
+    echo "Note: You may need to accept the self-signed certificate in your browser"
