@@ -1,0 +1,92 @@
+# Argo CD RBAC Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-rbac-cm
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: argocd-rbac-cm
+    app.kubernetes.io/part-of: argocd
+data:
+  # RBAC policy configuration
+  policy.default: role:readonly
+  policy.csv: |
+    # Default policies for all users
+    p, role:admin, applications, *, */*, allow
+    p, role:admin, clusters, *, *, allow
+    p, role:admin, repositories, *, *, allow
+    p, role:admin, logs, get, *, allow
+    p, role:admin, exec, create, */*, allow
+    
+    # Developer role policies
+    p, role:developer, applications, get, */*, allow
+    p, role:developer, applications, sync, */*, allow
+    p, role:developer, applications, action/*, */*, allow
+    p, role:developer, repositories, get, *, allow
+    p, role:developer, logs, get, *, allow
+    
+    # Read-only role policies
+    p, role:readonly, applications, get, */*, allow
+    p, role:readonly, repositories, get, *, allow
+    p, role:readonly, logs, get, *, allow
+    
+    # Group mappings (for integration with external auth systems)
+    g, kubernetes-demo:admin, role:admin
+    g, kubernetes-demo:developer, role:developer
+    g, kubernetes-demo:viewer, role:readonly
+---
+# Argo CD Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-cmd-params-cm
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: argocd-cmd-params-cm
+    app.kubernetes.io/part-of: argocd
+data:
+  # Server configuration
+  server.insecure: "true"  # Allow insecure connections for local development
+  
+  # Application controller configuration  
+  application.instanceLabelKey: "argocd.argoproj.io/instance"
+  
+  # Repository server configuration
+  reposerver.parallelism.limit: "10"
+---
+# Argo CD Server Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-cm
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: argocd-cm
+    app.kubernetes.io/part-of: argocd
+data:
+  # Git repository credentials (for public repos this can be empty)
+  repositories: |
+    - url: https://github.com/n2Electrons/kubernetes-demo.git
+      name: kubernetes-demo
+      type: git
+  
+  # Application configuration
+  application.instanceLabelKey: argocd.argoproj.io/instance
+  
+  # Server configuration
+  url: https://localhost:8080
+  
+  # Resource customizations
+  resource.customizations.health.argoproj.io_Application: |
+    hs = {}
+    hs.status = "Progressing"
+    hs.message = ""
+    if obj.status ~= nil then
+      if obj.status.health ~= nil then
+        hs.status = obj.status.health.status
+        if obj.status.health.message ~= nil then
+          hs.message = obj.status.health.message
+        end
+      end
+    end
+    return hs

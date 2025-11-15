@@ -39,7 +39,12 @@ Multi-node Kubernetes cluster with GitOps workflow using Argo CD for cloud-nativ
    ./scripts/setup-cluster.sh
    ```
 
-3. **Cleanup**
+3. **Setup GitOps (Argo CD)**
+   ```bash
+   ./scripts/setup-argocd.sh
+   ```
+
+4. **Cleanup**
    ```bash
    ./scripts/cleanup-cluster.sh
    ```
@@ -49,7 +54,7 @@ Multi-node Kubernetes cluster with GitOps workflow using Argo CD for cloud-nativ
 - **Phase 1** COMPLETE - Environment Preparation
 - **Phase 2** COMPLETE - Multi-node Cluster Setup
 - **Phase 3** COMPLETE - Kubernetes App Deployment
-- **Phase 4** TODO - Argo CD Setup (GitOps)
+- **Phase 4** COMPLETE - Argo CD Setup (GitOps)
 - **Phase 5** TODO - CI/CD Pipeline
 - **Phase 6** TODO - Terraform + Ansible + Vault
 - **Phase 7** TODO - Testing & Autoscaling Validation
@@ -201,6 +206,74 @@ For detailed testing procedures and report configuration options, see `test/TEST
 - All 3 replicas running and distributed across nodes
 - HPA monitoring CPU utilization
 - Service endpoints healthy and accessible
+
+### Phase 4 - Argo CD GitOps Setup
+
+This phase implements GitOps workflow using Argo CD for automated application deployment and management.
+
+#### GitOps Architecture
+
+**Argo CD Components**
+- **Application Controller**: Monitors Git repositories and manages application state
+- **API Server**: Provides web UI and gRPC/REST API
+- **Repository Server**: Clones and renders Git repository content
+- **DEX Server**: Identity and access management
+- **Redis**: Caching layer for improved performance
+
+#### Installation and Setup
+
+**Install Argo CD**
+```bash
+# Install Argo CD and configure GitOps workflow
+./scripts/setup-argocd.sh
+```
+
+**Access Argo CD UI**
+```bash
+# Start port forwarding
+kubectl port-forward svc/argocd-server -n argocd 8080:443
+
+# Get admin password  
+kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
+
+# Open https://localhost:8080 and login with admin/<password>
+```
+
+#### GitOps Workflow
+
+**Automated Deployment Process**
+1. Developer commits changes to `apps/kub-app/` directory
+2. Argo CD detects changes via repository polling (3-minute intervals)
+3. Application Controller compares Git state vs cluster state
+4. Automatic synchronization applies changes to cluster
+5. Self-healing reverts any manual changes to maintain Git state
+
+**Application Configuration**
+- **Repository**: https://github.com/n2Electrons/kubernetes-demo.git
+- **Path**: `apps/kub-app`
+- **Sync Policy**: Automated with self-healing enabled
+- **Target**: `kub-app` namespace
+
+#### Testing GitOps
+
+**Argo CD Tests**
+```bash
+./test/run-t5-tests.sh  # Argo CD installation and GitOps validation
+```
+
+**Manual Verification**
+```bash
+# Check application status
+kubectl get applications -n argocd
+
+# Monitor sync activity
+kubectl logs -f deployment/argocd-application-controller -n argocd
+
+# Verify GitOps managed resources
+kubectl get all -n kub-app
+```
+
+For detailed GitOps configuration and troubleshooting, see `docs/argocd-gitops.md`.
 
 ## NGINX Core Functions
 

@@ -1,0 +1,35 @@
+# Argo CD Repository Configuration
+apiVersion: v1
+kind: Secret
+metadata:
+  name: kubernetes-demo-repo
+  namespace: argocd
+  labels:
+    argocd.argoproj.io/secret-type: repository
+type: Opaque
+stringData:
+  type: git
+  url: https://github.com/n2Electrons/kubernetes-demo.git
+  name: kubernetes-demo
+---
+# Alternative: SSH Repository Configuration (commented out)
+# If you want to use SSH instead of HTTPS, uncomment and configure below:
+#
+# apiVersion: v1
+# kind: Secret
+# metadata:
+#   name: kubernetes-demo-repo-ssh
+#   namespace: argocd
+#   labels:
+#     argocd.argoproj.io/secret-type: repository
+# type: Opaque
+# stringData:
+#   type: git
+#   url: git@github.com:n2Electrons/kubernetes-demo.git
+#   name: kubernetes-demo-ssh
+#   sshPrivateKey: |
+#     -----BEGIN OPENSSH PRIVATE KEY-----
+#     # Add your SSH private key here
+#     -----END OPENSSH PRIVATE KEY-----
+#   insecure: "false"
+#   enableLfs: "false"
