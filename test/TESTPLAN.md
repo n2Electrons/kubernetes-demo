@@ -22,6 +22,17 @@ Tests for **Milestone 2 - Multi-node Application Deployment**:
 - Resource limits and requests validation
 - Health checks (readiness and liveness probes)
 
+### t3-nginx-access.py
+Tests for **NGINX Application Access and Performance**:
+- HTTP response validation (200 status code)
+- NGINX content verification (welcome page)
+- Response headers validation
+- Load balancing across multiple pods
+- Service endpoint health checks
+- Ingress routing functionality
+- Basic performance and response time testing
+- Concurrent request handling
+
 ### Running Tests
 
 **Install dependencies:**
@@ -37,6 +48,9 @@ pytest test/t1-infrastructure.py -v
 # Run multi-node deployment tests
 pytest test/t2-multi-node.py -v
 
+# Run NGINX access tests
+pytest test/t3-nginx-access.py -v
+
 # Run all tests
 pytest test/ -v
 ```
@@ -48,6 +62,9 @@ pytest test/ -v
 
 # Run Milestone 2 tests (includes deployment)
 ./test/run-t2-tests.sh
+
+# Run NGINX access tests (includes deployment)
+./test/run-t3-tests.sh
 ```
 
 ## Test Requirements

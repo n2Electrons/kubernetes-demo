@@ -46,8 +46,8 @@ Multi-node Kubernetes cluster with GitOps workflow using Argo CD for cloud-nativ
 
 ## Project Phases
 
-- **Phase 1** COMPLETE - Environment Preparation - Bootstrap scripts and folder structure
-- **Phase 2** COMPLETE - Multi-node Cluster Setup - Simple 3-replica deployment across nodes
+- **Phase 1** COMPLETE - Environment Preparation
+- **Phase 2** COMPLETE - Multi-node Cluster Setup
 - **Phase 3** TODO - Kubernetes App Deployment
 - **Phase 4** TODO - Argo CD Setup (GitOps)
 - **Phase 5** TODO - CI/CD Pipeline
