@@ -98,6 +98,25 @@ The deployment ensures pods are distributed across all cluster nodes:
 
 This configuration provides fault tolerance and load distribution across the entire cluster infrastructure.
 
+## NGINX Core Functions
+
+### Main Features
+
+**Web Server**
+Serves static files (HTML, CSS, images, etc.) very efficiently.
+
+**Reverse Proxy**
+Receives client requests and redirects them to one or more internal servers.
+
+**Load Balancer**
+Distributes traffic to multiple replicas of an application.
+
+**TLS/SSL Termination**
+NGINX can handle certificates and encryption for your applications.
+
+**Kubernetes Ingress**
+In Kubernetes, NGINX is used as an Ingress Controller, allowing internal services to be exposed through HTTP/HTTPS routes.
+
 ## Git Workflow
 
 - **main**: Release branch for milestones
