@@ -33,6 +33,92 @@ Tests for **NGINX Application Access and Performance**:
 - Basic performance and response time testing
 - Concurrent request handling
 
+### t4-validate-deployment.py
+Tests for **Phase 3 - Deployment Validation and Load Testing**:
+- **Deployment Validation**: Cluster connectivity, namespace existence, deployment status, service configuration, ingress setup, HPA configuration, HTTP accessibility, pod distribution
+- **Load Testing**: Light load (5 users), medium load (10 users), heavy load with scaling (20 users), concurrent request handling, response time performance
+- **Performance Metrics**: Requests per second, failure rates, response times, HPA scaling behavior
+- **Integration Testing**: End-to-end validation combining all deployment and performance aspects
+
+## Phase 3 - Deployment Validation
+
+### Comprehensive Testing
+
+**t4-validate-deployment.py**
+Complete deployment validation and load testing:
+- **Deployment Health**: Cluster connectivity, namespace, deployment status, service endpoints, ingress configuration, HPA setup, HTTP accessibility, pod distribution
+- **Load Testing**: Light, medium, and heavy load scenarios with performance metrics
+- **Scaling Validation**: HPA behavior monitoring during load tests
+- **Concurrent Handling**: Multi-threaded request testing
+- **Performance Metrics**: Response times, throughput, failure rates
+
+### Running Phase 3 Validation
+
+**Comprehensive validation and load testing:**
+```bash
+# Run all validation and load tests
+./test/run-t4-tests.sh
+```
+
+**Manual testing:**
+```bash
+# Run deployment validation and load tests directly
+pytest test/t4-validate-deployment.py -v -s
+```
+
+**Individual test categories:**
+```bash
+# Deployment validation only
+pytest test/t4-validate-deployment.py::TestDeploymentValidation -v
+
+# Load testing only  
+pytest test/t4-validate-deployment.py::TestLoadTesting -v -s
+```
+
+## Test Reporting
+
+### Comprehensive Reports
+
+The test suite generates detailed reports including:
+
+**HTML Report Features:**
+- Executive summary with key metrics
+- Cluster status and node information
+- Application deployment details
+- Pod distribution across nodes
+- Performance testing results with charts
+- Test conclusions and recommendations
+
+**JSON Reports:**
+- `cluster_status_*.json` - Detailed cluster information
+- `application_status_*.json` - Application deployment data
+- `performance_results_*.json` - Load testing metrics
+
+### Generating Reports
+
+**Automated report generation:**
+```bash
+# Generate reports during test execution
+./test/run-t4-tests.sh
+
+# Generate reports independently
+./test/generate-reports.sh
+```
+
+**Manual report generation:**
+```bash
+# Run tests with reporting
+python3 test/t4-validate-deployment.py
+
+# Generate report from existing data
+python3 -c "from test.test_reporter import generate_comprehensive_report; generate_comprehensive_report()"
+```
+
+**Report Location:**
+- Reports are saved to `./test/reports/` directory
+- HTML reports: `deployment_report_YYYYMMDD_HHMMSS.html`
+- JSON reports: `*_status_YYYYMMDD_HHMMSS.json`
+
 ### Running Tests
 
 **Install dependencies:**
@@ -51,6 +137,9 @@ pytest test/t2-multi-node.py -v
 # Run NGINX access tests
 pytest test/t3-nginx-access.py -v
 
+# Run deployment validation and load tests
+pytest test/t4-validate-deployment.py -v
+
 # Run all tests
 pytest test/ -v
 ```
@@ -65,6 +154,9 @@ pytest test/ -v
 
 # Run NGINX access tests (includes deployment)
 ./test/run-t3-tests.sh
+
+# Run Phase 3 validation and load tests
+./test/run-t4-tests.sh
 ```
 
 ## Test Requirements

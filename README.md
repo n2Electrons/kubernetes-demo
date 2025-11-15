@@ -48,7 +48,7 @@ Multi-node Kubernetes cluster with GitOps workflow using Argo CD for cloud-nativ
 
 - **Phase 1** COMPLETE - Environment Preparation
 - **Phase 2** COMPLETE - Multi-node Cluster Setup
-- **Phase 3** TODO - Kubernetes App Deployment
+- **Phase 3** COMPLETE - Kubernetes App Deployment
 - **Phase 4** TODO - Argo CD Setup (GitOps)
 - **Phase 5** TODO - CI/CD Pipeline
 - **Phase 6** TODO - Terraform + Ansible + Vault
@@ -97,6 +97,110 @@ The deployment ensures pods are distributed across all cluster nodes:
 - **k3d-kub-demo-agent-1** (worker node)
 
 This configuration provides fault tolerance and load distribution across the entire cluster infrastructure.
+
+### Phase 3 - Kubernetes App Deployment
+
+This phase validates the deployed Kubernetes application through comprehensive testing and load validation procedures.
+
+#### Deployment Validation
+
+**Quick Deployment**
+```bash
+# Deploy the complete application stack
+./scripts/deploy-app.sh
+
+# Verify deployment status
+kubectl get all -n kub-app
+```
+
+**Application Access**
+```bash
+# Test direct access via ingress
+curl -H "Host: kub-app.local" http://localhost:8080
+
+# Add local DNS resolution (optional)
+echo "127.0.0.1 kub-app.local" | sudo tee -a /etc/hosts
+```
+
+#### Testing Framework
+
+**Infrastructure Tests**
+```bash
+./test/run-t1-tests.sh  # Cluster and system validation
+```
+
+**Multi-node Deployment Tests**
+```bash
+./test/run-t2-tests.sh  # Application deployment validation
+```
+
+**NGINX Access Tests**
+```bash
+./test/run-t3-tests.sh  # HTTP access and performance validation
+```
+
+**Comprehensive Validation and Load Testing**
+```bash
+./test/run-t4-tests.sh  # Complete deployment validation and load testing
+```
+
+#### Manual Verification
+
+**Deployment Health Check**
+```bash
+# Check all resources
+kubectl get all -n kub-app
+
+# Verify pod distribution
+kubectl get pods -n kub-app -o wide
+```
+
+**Load Testing**
+```bash
+# Quick load test using Apache Bench
+ab -t 10 -c 5 -H "Host: kub-app.local" http://localhost:8080/
+
+# Monitor HPA scaling during load
+kubectl get hpa -n kub-app -w
+```
+
+#### Test Report Generation
+
+The testing framework includes comprehensive report generation capabilities that create detailed HTML dashboards and JSON data exports.
+
+**Automated Reports**
+```bash
+# Run tests with automatic report generation
+./test/run-t4-tests.sh  # Includes load testing and report generation
+
+# Generate reports independently from existing test data  
+./test/generate-reports.sh
+```
+
+**Report Features**
+- **HTML Dashboards**: Visual reports with cluster status, application health, and performance metrics
+- **JSON Data Exports**: Structured data for integration with monitoring systems
+- **Load Test Analysis**: RPS metrics, response times, and success rates
+- **Multi-node Validation**: Pod distribution and resource utilization across cluster nodes
+
+**Report Location**
+All generated reports are saved in `test/reports/` directory with timestamps for historical tracking.
+
+For detailed testing procedures and report configuration options, see `test/TESTPLAN.md`.
+
+#### Troubleshooting
+
+**Common Issues**
+- Check `docs/troubleshooting.md` for debugging procedures
+- Verify cluster nodes are ready: `kubectl get nodes`
+- Check pod logs: `kubectl logs -n kub-app -l app=kub-app`
+- Validate ingress: `kubectl describe ingress -n kub-app`
+
+**Health Checks**
+- Application responds with HTTP 200 status
+- All 3 replicas running and distributed across nodes
+- HPA monitoring CPU utilization
+- Service endpoints healthy and accessible
 
 ## NGINX Core Functions
 

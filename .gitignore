@@ -58,3 +58,5 @@ venv.bak/
 
 # Personal notes
 notes.md
+test/reports/
+load_test_results.json
