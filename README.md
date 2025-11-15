@@ -164,6 +164,30 @@ ab -t 10 -c 5 -H "Host: kub-app.local" http://localhost:8080/
 kubectl get hpa -n kub-app -w
 ```
 
+#### Test Report Generation
+
+The testing framework includes comprehensive report generation capabilities that create detailed HTML dashboards and JSON data exports.
+
+**Automated Reports**
+```bash
+# Run tests with automatic report generation
+./test/run-t4-tests.sh  # Includes load testing and report generation
+
+# Generate reports independently from existing test data  
+./test/generate-reports.sh
+```
+
+**Report Features**
+- **HTML Dashboards**: Visual reports with cluster status, application health, and performance metrics
+- **JSON Data Exports**: Structured data for integration with monitoring systems
+- **Load Test Analysis**: RPS metrics, response times, and success rates
+- **Multi-node Validation**: Pod distribution and resource utilization across cluster nodes
+
+**Report Location**
+All generated reports are saved in `test/reports/` directory with timestamps for historical tracking.
+
+For detailed testing procedures and report configuration options, see `test/TESTPLAN.md`.
+
 #### Troubleshooting
 
 **Common Issues**

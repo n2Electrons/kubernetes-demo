@@ -10,7 +10,13 @@ import json
 import time
 import threading
 import queue
+import os
 from typing import Dict, List, Tuple
+from test_reporter import DeploymentReporter, generate_comprehensive_report
+
+
+# Global variable to collect load test results for reporting
+LOAD_TEST_RESULTS = []
 
 
 class TestDeploymentValidation:
@@ -168,7 +174,7 @@ class TestLoadTesting:
         ], capture_output=True, text=True)
         assert result.returncode == 0, "Application not accessible for load testing"
 
-    def _run_load_test(self, concurrent_users: int, duration: int) -> Dict[str, str]:
+    def _run_load_test(self, concurrent_users: int, duration: int, test_name: str = "") -> Dict[str, str]:
         """Run Apache Bench load test and return results"""
         result = subprocess.run([
             'ab', '-t', str(duration), '-c', str(concurrent_users),
@@ -180,16 +186,36 @@ class TestLoadTesting:
         
         # Parse results
         output = result.stdout
-        results = {}
+        results = {
+            "name": test_name,
+            "concurrent_users": concurrent_users,
+            "duration": duration,
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
+        }
         
         for line in output.split('\n'):
             if 'Requests per second:' in line:
                 results['rps'] = line.split()[3]
             elif 'Failed requests:' in line:
-                results['failed'] = line.split()[2]
+                results['failed_requests'] = int(line.split()[2])
+            elif 'Complete requests:' in line:
+                results['total_requests'] = int(line.split()[2])
             elif 'Time per request:' in line and '(mean)' in line:
                 if 'response_time' not in results:
                     results['response_time'] = line.split()[3]
+            elif 'Transfer rate:' in line:
+                results['transfer_rate'] = line.split()[2]
+        
+        # Add to global results for reporting
+        LOAD_TEST_RESULTS.append(results)
+        
+        # Also save to file for persistence across pytest runs
+        try:
+            import json
+            with open('load_test_results.json', 'w') as f:
+                json.dump(LOAD_TEST_RESULTS, f, indent=2)
+        except Exception:
+            pass  # Continue even if file write fails
         
         return results
 
@@ -210,31 +236,31 @@ class TestLoadTesting:
         """Test light load (5 concurrent users, 10 seconds)"""
         initial_replicas, _ = self._get_hpa_status()
         
-        results = self._run_load_test(concurrent_users=5, duration=10)
+        results = self._run_load_test(concurrent_users=5, duration=10, test_name="Light Load")
         
         # Validate results
-        assert 'failed' in results, "Failed requests metric not found"
-        assert int(results['failed']) == 0, f"Load test had {results['failed']} failed requests"
+        assert 'failed_requests' in results, "Failed requests metric not found"
+        assert results['failed_requests'] == 0, f"Load test had {results['failed_requests']} failed requests"
         
         assert 'rps' in results, "Requests per second metric not found"
         rps = float(results['rps'])
         assert rps > 0, "No requests processed"
         
-        print(f"Light load results: {rps} RPS, {results['failed']} failures")
+        print(f"Light load results: {rps} RPS, {results['failed_requests']} failures")
 
     def test_medium_load(self):
         """Test medium load (10 concurrent users, 15 seconds)"""
-        results = self._run_load_test(concurrent_users=10, duration=15)
+        results = self._run_load_test(concurrent_users=10, duration=15, test_name="Medium Load")
         
         # Validate results
-        assert 'failed' in results, "Failed requests metric not found"
-        assert int(results['failed']) == 0, f"Load test had {results['failed']} failed requests"
+        assert 'failed_requests' in results, "Failed requests metric not found"
+        assert results['failed_requests'] == 0, f"Load test had {results['failed_requests']} failed requests"
         
         assert 'rps' in results, "Requests per second metric not found"
         rps = float(results['rps'])
         assert rps > 0, "No requests processed"
         
-        print(f"Medium load results: {rps} RPS, {results['failed']} failures")
+        print(f"Medium load results: {rps} RPS, {results['failed_requests']} failures")
         
         # Allow time for metrics to update
         time.sleep(5)
@@ -243,17 +269,17 @@ class TestLoadTesting:
         """Test heavy load and HPA scaling (20 concurrent users, 30 seconds)"""
         initial_replicas, _ = self._get_hpa_status()
         
-        results = self._run_load_test(concurrent_users=20, duration=30)
+        results = self._run_load_test(concurrent_users=20, duration=30, test_name="Heavy Load with Scaling")
         
         # Validate load test results
-        assert 'failed' in results, "Failed requests metric not found"
-        assert int(results['failed']) == 0, f"Load test had {results['failed']} failed requests"
+        assert 'failed_requests' in results, "Failed requests metric not found"
+        assert results['failed_requests'] == 0, f"Load test had {results['failed_requests']} failed requests"
         
         assert 'rps' in results, "Requests per second metric not found"
         rps = float(results['rps'])
         assert rps > 0, "No requests processed"
         
-        print(f"Heavy load results: {rps} RPS, {results['failed']} failures")
+        print(f"Heavy load results: {rps} RPS, {results['failed_requests']} failures")
         
         # Wait for HPA to potentially scale
         time.sleep(10)
@@ -264,6 +290,11 @@ class TestLoadTesting:
         assert final_replicas >= initial_replicas, f"Replica count decreased during load: {final_replicas} < {initial_replicas}"
         
         print(f"Scaling behavior: {initial_replicas} -> {final_replicas} replicas")
+        
+        # Add scaling information to results
+        results['initial_replicas'] = initial_replicas
+        results['final_replicas'] = final_replicas
+        results['scaling_occurred'] = final_replicas > initial_replicas
 
     def test_concurrent_requests_handling(self):
         """Test handling of concurrent requests using threading"""
@@ -325,4 +356,42 @@ class TestLoadTesting:
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    # Run tests and generate report
+    print("Running deployment validation and load tests...")
+    pytest.main([__file__, "-v", "-s"])
+    
+    # Generate comprehensive report after tests complete
+    print("\nGenerating comprehensive test report...")
+    try:
+        # Try to load results from file first (for persistence)
+        results_to_use = LOAD_TEST_RESULTS
+        try:
+            import json
+            if os.path.exists('load_test_results.json'):
+                with open('load_test_results.json', 'r') as f:
+                    file_results = json.load(f)
+                    if file_results:  # Use file results if available and not empty
+                        results_to_use = file_results
+                        print(f"Loaded {len(results_to_use)} load test results from file")
+        except Exception as e:
+            print(f"Could not load results from file: {e}")
+        
+        report_file = generate_comprehensive_report(results_to_use)
+        print(f"Comprehensive report generated: {report_file}")
+        
+        # Cleanup temporary file
+        try:
+            if os.path.exists('load_test_results.json'):
+                os.remove('load_test_results.json')
+        except Exception:
+            pass
+        
+        # Try to open the report in browser (optional)
+        if os.name == 'posix':  # Linux/Mac
+            subprocess.run(['xdg-open', report_file], check=False)
+        elif os.name == 'nt':  # Windows
+            subprocess.run(['start', report_file], shell=True, check=False)
+            
+    except Exception as e:
+        print(f"Warning: Could not generate report: {e}")
+        print("Test results are available in LOAD_TEST_RESULTS variable")

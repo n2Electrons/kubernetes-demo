@@ -75,6 +75,50 @@ pytest test/t4-validate-deployment.py::TestDeploymentValidation -v
 pytest test/t4-validate-deployment.py::TestLoadTesting -v -s
 ```
 
+## Test Reporting
+
+### Comprehensive Reports
+
+The test suite generates detailed reports including:
+
+**HTML Report Features:**
+- Executive summary with key metrics
+- Cluster status and node information
+- Application deployment details
+- Pod distribution across nodes
+- Performance testing results with charts
+- Test conclusions and recommendations
+
+**JSON Reports:**
+- `cluster_status_*.json` - Detailed cluster information
+- `application_status_*.json` - Application deployment data
+- `performance_results_*.json` - Load testing metrics
+
+### Generating Reports
+
+**Automated report generation:**
+```bash
+# Generate reports during test execution
+./test/run-t4-tests.sh
+
+# Generate reports independently
+./test/generate-reports.sh
+```
+
+**Manual report generation:**
+```bash
+# Run tests with reporting
+python3 test/t4-validate-deployment.py
+
+# Generate report from existing data
+python3 -c "from test.test_reporter import generate_comprehensive_report; generate_comprehensive_report()"
+```
+
+**Report Location:**
+- Reports are saved to `./test/reports/` directory
+- HTML reports: `deployment_report_YYYYMMDD_HHMMSS.html`
+- JSON reports: `*_status_YYYYMMDD_HHMMSS.json`
+
 ### Running Tests
 
 **Install dependencies:**
