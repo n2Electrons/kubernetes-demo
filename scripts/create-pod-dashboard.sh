@@ -505,6 +505,80 @@ dashboard_json=$(cat <<'EOF'
           }
         },
         "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24}
+      },
+      {
+        "id": 13,
+        "title": "Monitoring Pods CPU Usage Over Time",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"monitoring\",container!=\"\"}[5m])) by (pod) * 100",
+            "legendFormat": "{{pod}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "spanNulls": false,
+              "insertNulls": false,
+              "showPoints": "never",
+              "pointSize": 5,
+              "stacking": {"mode": "none", "group": "A"},
+              "axisPlacement": "auto",
+              "axisLabel": "CPU %",
+              "axisColorMode": "text",
+              "scaleDistribution": {"type": "linear"},
+              "axisCenteredZero": false,
+              "hideFrom": {"legend": false, "tooltip": false, "vis": false},
+              "thresholdsStyle": {"mode": "off"}
+            }
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 32}
+      },
+      {
+        "id": 14,
+        "title": "Monitoring Pods Memory Usage Over Time",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "sum(container_memory_usage_bytes{namespace=\"monitoring\",container!=\"\"}) by (pod) / 1024 / 1024",
+            "legendFormat": "{{pod}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "megabytes",
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "spanNulls": false,
+              "insertNulls": false,
+              "showPoints": "never",
+              "pointSize": 5,
+              "stacking": {"mode": "none", "group": "A"},
+              "axisPlacement": "auto",
+              "axisLabel": "Memory MB",
+              "axisColorMode": "text",
+              "scaleDistribution": {"type": "linear"},
+              "axisCenteredZero": false,
+              "hideFrom": {"legend": false, "tooltip": false, "vis": false},
+              "thresholdsStyle": {"mode": "off"}
+            }
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 32}
       }
     ],
     "time": {"from": "now-15m", "to": "now"},
@@ -554,6 +628,7 @@ echo -e "${GREEN}📈 DETAILED TIME SERIES:${NC}"
 echo "• kub-app Pod CPU/Memory Over Time - Focused on application pods"
 echo "• All Pods CPU/Memory Usage - Every pod in cluster grouped by pod"
 echo "• System Services Pod Details - Detailed system component breakdown"
+echo "• Monitoring Pods CPU/Memory Over Time - Dedicated monitoring stack plots"
 echo
 echo -e "${GREEN}🎨 GROUPING IMPROVEMENTS:${NC}"
 echo "• CPU/Memory grouped BY POD (not by container)"
