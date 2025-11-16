@@ -44,26 +44,60 @@ Multi-node Kubernetes cluster with GitOps workflow using Argo CD for cloud-nativ
    ./scripts/setup-argocd.sh
    ```
 
-4. **Setup Monitoring (Optional)**
+4. **Setup Monitoring Stack**
    ```bash
    ./scripts/setup-monitoring.sh
+   ./scripts/launch-monitoring.sh
    ```
 
-5. **Cleanup**
+5. **Access Monitoring (Optional)**
+   ```bash
+   # Access services at:
+   # Prometheus: http://localhost:9090
+   # Grafana: http://localhost:3002 (admin/admin123)
+   # Create enhanced dashboard
+   ./scripts/create-pod-dashboard.sh
+   ```
+
+6. **Run Tests**
+   ```bash
+   python3 -m pytest test/t*.py -v
+   ```
+
+7. **Cleanup**
    ```bash
    ./scripts/cleanup-cluster.sh
    ```
 
 ## Project Phases
 
-- **Phase 1** ✅ COMPLETE - Environment Preparation
-- **Phase 2** ✅ COMPLETE - Multi-node Cluster Setup
-- **Phase 3** ✅ COMPLETE - Kubernetes App Deployment
-- **Phase 4** ✅ COMPLETE - Argo CD Setup (GitOps)
-- **Phase 5** ✅ COMPLETE - CI/CD Pipeline with GitHub Actions
+- **Phase 1** COMPLETE - Environment Preparation
+- **Phase 2** COMPLETE - Multi-node Cluster Setup
+- **Phase 3** COMPLETE - Kubernetes App Deployment
+- **Phase 4** COMPLETE - Argo CD Setup (GitOps)
+- **Phase 5** COMPLETE - CI/CD Pipeline with GitHub Actions
 - **Phase 6** TODO - Terraform + Ansible + Vault
-- **Phase 7** TODO - Testing & Autoscaling Validation
-- **Phase 8** COMPLETE - Monitoring Stack
+- **Phase 7** COMPLETE - Testing & Validation with pytest
+- **Phase 8** COMPLETE - Monitoring Stack (Prometheus, Grafana, AlertManager)
+
+## Testing & Validation
+
+The project includes comprehensive pytest test suites:
+
+```bash
+# Run all tests
+python3 -m pytest test/t*.py -v
+
+# Run specific test categories
+python3 -m pytest test/t1-infrastructure.py -v     # Infrastructure tests
+python3 -m pytest test/t3-nginx-access.py -v       # Application access tests
+python3 -m pytest test/t8-monitoring-tests.py -v   # Monitoring stack tests
+```
+
+**Test Status:**
+- **71 tests total** - Infrastructure, deployment, monitoring validation
+- **66 tests passing** - Core functionality verified
+- **5 tests environment-dependent** - Replica count and ArgoCD sync expectations
 
 ### Phase 2 - Multi-node Application Deployment
 

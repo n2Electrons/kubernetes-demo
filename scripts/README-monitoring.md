@@ -21,6 +21,14 @@ This directory contains scripts for managing the Kubernetes monitoring stack (Pr
 ### `launch-monitoring.sh`
 Main launcher for Prometheus and Grafana with port forwarding setup.
 - Usage: `./scripts/launch-monitoring.sh`
+- Manages background processes with PID tracking
+- Auto-cleanup on termination
+
+### `create-pod-dashboard.sh`
+Creates comprehensive pod monitoring dashboard with namespace summaries.
+- Usage: `./scripts/create-pod-dashboard.sh`
+- Features: kub-app pods, kube-system summary, monitoring summary
+- Individual pod metrics and namespace-level aggregates
 
 ### `monitoring-access.sh`
 Quick status check and access information for running services.
@@ -46,9 +54,40 @@ Configure Prometheus as data source in Grafana.
 - Targets: http://localhost:9090/targets
 - Query Interface: http://localhost:9090/graph
 
-## Grafana Dashboard Catalog
+## Grafana Dashboard Features
 
-### Quick Import Guide
+### Comprehensive Pod Monitoring Dashboard
+Created by `./scripts/create-pod-dashboard.sh`:
+
+**Top Row Stats (Namespace Summaries):**
+- kub-app Pod CPU % - Application pod CPU usage 
+- kub-app Pod Memory - Application pod memory consumption
+- kube-system CPU % - System namespace total CPU
+- kube-system Memory - System namespace total memory  
+- monitoring CPU % - Monitoring stack total CPU
+- monitoring Memory - Monitoring stack total memory
+
+**Time Series Plots:**
+- kub-app Pod CPU/Memory Over Time - Application trends
+- All Pods CPU/Memory Usage - Cluster-wide pod metrics
+- System Services Pod Details - Individual system component breakdown
+- Monitoring Pods CPU/Memory Over Time - Dedicated monitoring stack plots
+
+**Key Features:**
+- Color-coded thresholds (Green/Yellow/Red)
+- Individual pod breakdown with namespace/pod format
+- Auto-refresh every 30 seconds
+- 15-minute time window with real-time data
+- Prometheus queries optimized for performance
+
+### Access Points
+```bash
+# Launch monitoring and create dashboard
+./scripts/launch-monitoring.sh
+./scripts/create-pod-dashboard.sh
+
+# Dashboard URL: http://localhost:3002/d/.../comprehensive-pod-monitoring-all-namespaces
+```
 1. Go to + → Import in Grafana
 2. Enter Dashboard ID
 3. Click Load
