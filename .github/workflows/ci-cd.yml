@@ -21,6 +21,11 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}/kub-app
 
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
 jobs:
   # Linting and code quality checks
   lint:
@@ -103,6 +108,9 @@ jobs:
     name: Security Scan
     runs-on: ubuntu-latest
     needs: lint
+    permissions:
+      contents: read
+      security-events: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -116,7 +124,7 @@ jobs:
           output: 'trivy-results.sarif'
 
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
           sarif_file: 'trivy-results.sarif'
