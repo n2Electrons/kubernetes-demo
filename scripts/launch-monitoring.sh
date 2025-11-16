@@ -8,7 +8,9 @@ set -e
 # Configuration
 GRAFANA_PORT=3002
 PROMETHEUS_PORT=9090
+ARGOCD_PORT=8090
 NAMESPACE="monitoring"
+ARGOCD_NAMESPACE="argocd"
 
 # Colors for output
 RED='\033[0;31m'
@@ -17,14 +19,15 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-echo -e "${BLUE}Starting Prometheus and Grafana Launcher${NC}"
-echo "=================================================="
+echo -e "${BLUE}Starting Prometheus, Grafana, and ArgoCD Launcher${NC}"
+echo "=========================================================="
 
 # Function to cleanup on exit (only used for --stop command)
 cleanup() {
     echo -e "\n${YELLOW}Cleaning up port forwarding processes...${NC}"
     pkill -f "port-forward.*grafana" 2>/dev/null || true
     pkill -f "port-forward.*prometheus" 2>/dev/null || true
+    pkill -f "port-forward.*argocd" 2>/dev/null || true
     echo -e "${GREEN}Cleanup completed${NC}"
 }
 
@@ -33,6 +36,7 @@ save_pids() {
     mkdir -p ~/.kub-demo/pids
     echo $PROMETHEUS_PF_PID > ~/.kub-demo/pids/prometheus.pid
     echo $GRAFANA_PF_PID > ~/.kub-demo/pids/grafana.pid
+    echo $ARGOCD_PF_PID > ~/.kub-demo/pids/argocd.pid
     echo -e "${GREEN}Process IDs saved for background monitoring${NC}"
 }
 
@@ -40,6 +44,7 @@ save_pids() {
 check_monitoring_status() {
     local prometheus_running=false
     local grafana_running=false
+    local argocd_running=false
     
     if [ -f ~/.kub-demo/pids/prometheus.pid ]; then
         local prometheus_pid=$(cat ~/.kub-demo/pids/prometheus.pid)
@@ -55,7 +60,14 @@ check_monitoring_status() {
         fi
     fi
     
-    return $([ "$prometheus_running" = true ] && [ "$grafana_running" = true ])
+    if [ -f ~/.kub-demo/pids/argocd.pid ]; then
+        local argocd_pid=$(cat ~/.kub-demo/pids/argocd.pid)
+        if kill -0 $argocd_pid 2>/dev/null; then
+            argocd_running=true
+        fi
+    fi
+    
+    return $([ "$prometheus_running" = true ] && [ "$grafana_running" = true ] && [ "$argocd_running" = true ])
 }
 
 # Handle command line arguments first
@@ -157,11 +169,12 @@ echo -e "${GREEN}Grafana pod: ${grafana_pod#pod/}${NC}"
 echo -e "${BLUE}Cleaning up existing port forwards...${NC}"
 pkill -f "port-forward.*grafana" 2>/dev/null || true
 pkill -f "port-forward.*prometheus" 2>/dev/null || true
+pkill -f "port-forward.*argocd" 2>/dev/null || true
 sleep 2
 
 # Clean up old PID files
 if [ -d ~/.kub-demo/pids ]; then
-    rm -f ~/.kub-demo/pids/prometheus.pid ~/.kub-demo/pids/grafana.pid
+    rm -f ~/.kub-demo/pids/prometheus.pid ~/.kub-demo/pids/grafana.pid ~/.kub-demo/pids/argocd.pid
 fi
 
 # Check if ports are available
@@ -179,6 +192,12 @@ if lsof -i :$PROMETHEUS_PORT &> /dev/null; then
     sleep 2
 fi
 
+if lsof -i :$ARGOCD_PORT &> /dev/null; then
+    echo -e "${YELLOW}Port $ARGOCD_PORT is in use, trying to free it...${NC}"
+    pkill -f ":$ARGOCD_PORT" 2>/dev/null || true
+    sleep 2
+fi
+
 # Start Prometheus port forwarding
 echo -e "${BLUE}Starting Prometheus port forwarding...${NC}"
 kubectl port-forward svc/prometheus $PROMETHEUS_PORT:9090 -n $NAMESPACE > /dev/null 2>&1 &
@@ -188,6 +207,11 @@ PROMETHEUS_PF_PID=$!
 echo -e "${BLUE}Starting Grafana port forwarding...${NC}"
 kubectl port-forward svc/grafana $GRAFANA_PORT:3000 -n $NAMESPACE > /dev/null 2>&1 &
 GRAFANA_PF_PID=$!
+
+# Start ArgoCD port forwarding
+echo -e "${BLUE}Starting ArgoCD port forwarding...${NC}"
+kubectl port-forward svc/argocd-server $ARGOCD_PORT:80 -n $ARGOCD_NAMESPACE > /dev/null 2>&1 &
+ARGOCD_PF_PID=$!
 
 # Save PIDs for background monitoring
 save_pids
@@ -215,11 +239,19 @@ else
     echo -e "${YELLOW}  Grafana connection test failed (might need more time)${NC}"
 fi
 
+# Test ArgoCD
+echo -e "${BLUE}  Testing ArgoCD...${NC}"
+if curl -s --connect-timeout 5 -k http://localhost:$ARGOCD_PORT > /dev/null; then
+    echo -e "${GREEN}  ArgoCD is accessible at http://localhost:$ARGOCD_PORT${NC}"
+else
+    echo -e "${YELLOW}  ArgoCD connection test failed (might need more time)${NC}"
+fi
+
 # Display access information
 echo ""
-echo "=================================================="
-echo -e "${GREEN}Monitoring Services Launched Successfully!${NC}"
-echo "=================================================="
+echo "==========================================================="
+echo -e "${GREEN}Monitoring and GitOps Services Launched Successfully!${NC}"
+echo "==========================================================="
 echo ""
 echo -e "${BLUE}Grafana Dashboard:${NC}"
 echo -e "   URL: ${GREEN}http://localhost:$GRAFANA_PORT${NC}"
@@ -229,6 +261,13 @@ echo ""
 echo -e "${BLUE}Prometheus Metrics:${NC}"
 echo -e "   URL: ${GREEN}http://localhost:$PROMETHEUS_PORT${NC}"
 echo -e "   Targets: ${GREEN}http://localhost:$PROMETHEUS_PORT/targets${NC}"
+echo ""
+echo -e "${BLUE}ArgoCD GitOps:${NC}"
+echo -e "   URL: ${GREEN}http://localhost:$ARGOCD_PORT${NC}"
+echo -e "   Username: ${GREEN}admin${NC}"
+echo -n "   Password: "
+kubectl -n $ARGOCD_NAMESPACE get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" 2>/dev/null | base64 -d 2>/dev/null || echo "IXEjPVJD6O7TI3ve"
+echo
 echo -e "   Query: ${GREEN}http://localhost:$PROMETHEUS_PORT/graph${NC}"
 echo ""
 echo -e "${BLUE}Quick Actions:${NC}"
