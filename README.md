@@ -51,11 +51,11 @@ Multi-node Kubernetes cluster with GitOps workflow using Argo CD for cloud-nativ
 
 ## Project Phases
 
-- **Phase 1** COMPLETE - Environment Preparation
-- **Phase 2** COMPLETE - Multi-node Cluster Setup
-- **Phase 3** COMPLETE - Kubernetes App Deployment
-- **Phase 4** COMPLETE - Argo CD Setup (GitOps)
-- **Phase 5** TODO - CI/CD Pipeline
+- **Phase 1** ✅ COMPLETE - Environment Preparation
+- **Phase 2** ✅ COMPLETE - Multi-node Cluster Setup
+- **Phase 3** ✅ COMPLETE - Kubernetes App Deployment
+- **Phase 4** ✅ COMPLETE - Argo CD Setup (GitOps)
+- **Phase 5** ✅ COMPLETE - CI/CD Pipeline with GitHub Actions
 - **Phase 6** TODO - Terraform + Ansible + Vault
 - **Phase 7** TODO - Testing & Autoscaling Validation
 - **Phase 8** TODO - Observability (Optional)
@@ -274,6 +274,96 @@ kubectl get all -n kub-app
 ```
 
 For detailed GitOps configuration and troubleshooting, see `docs/argocd-gitops.md`.
+
+### Phase 5 - CI/CD Pipeline with GitHub Actions
+
+This phase implements a comprehensive CI/CD pipeline using GitHub Actions that automates the entire development lifecycle from code commit to production deployment.
+
+#### Pipeline Architecture
+
+**Multi-Stage Pipeline**
+```
+GitHub Push → Lint → Test → Security Scan → Build → Deploy Dev → Integration Test → Deploy Prod
+```
+
+#### Pipeline Jobs
+
+**1. Lint Job**
+- **Python**: black, flake8, pylint code formatting and style
+- **YAML**: yamllint for Kubernetes manifests
+- **Shell Scripts**: shellcheck for bash script validation
+- **Dockerfile**: hadolint for container best practices
+
+**2. Test Job**
+- **Unit Tests**: pytest with coverage reporting (80% minimum)
+- **Manifest Validation**: kubeval for Kubernetes YAML validation
+- **Integration Tests**: Application deployment validation
+
+**3. Security Job**
+- **Vulnerability Scanning**: Trivy scanner for container images
+- **SARIF Upload**: Security findings to GitHub Security tab
+- **Policy**: Fail on HIGH/CRITICAL vulnerabilities
+
+**4. Build Job**
+- **Multi-platform**: linux/amd64, linux/arm64 container builds
+- **Registry**: GitHub Container Registry (ghcr.io)
+- **Optimization**: Multi-stage Docker builds with layer caching
+- **Metadata**: Build info and Git SHA injection
+
+**5. Deploy Jobs**
+- **Development**: Automatic deployment on develop branch
+- **Production**: Manual approval required for main branch
+- **Environment Protection**: GitHub environment rules
+- **Argo CD Integration**: GitOps synchronization
+
+#### Security Features
+
+**Container Security**
+- Non-root user execution (nginx user UID 101)
+- Minimal Alpine Linux base images
+- No secrets in container layers
+- Health checks and proper signal handling
+
+**Pipeline Security**
+- Least privilege GITHUB_TOKEN permissions
+- Pinned action versions for supply chain security
+- Secret scanning and vulnerability detection
+- Environment-specific secret management
+
+#### CI/CD Testing
+
+**Pipeline Validation Tests**
+```bash
+./test/run-t6-tests.sh  # CI/CD pipeline configuration validation
+```
+
+**Manual Testing**
+```bash
+# Test Docker build locally
+docker build -f ci/Dockerfile .
+
+# Validate workflow syntax
+yamllint .github/workflows/ci-cd.yml
+
+# Check security configuration
+docker run --rm -v $PWD:/workspace aquasec/trivy fs /workspace
+```
+
+#### Environment Configuration
+
+**Development Environment**
+- **Trigger**: Automatic on develop branch push
+- **Approval**: Not required
+- **Monitoring**: Basic health checks
+- **Rollback**: Automated on failure
+
+**Production Environment**
+- **Trigger**: Manual on main branch push
+- **Approval**: Required reviewers
+- **Monitoring**: Full observability
+- **Rollback**: Manual with approval
+
+For detailed CI/CD configuration and troubleshooting, see `docs/phase5-implementation.md`.
 
 ## NGINX Core Functions
 
