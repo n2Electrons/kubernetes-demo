@@ -20,17 +20,76 @@ NC='\033[0m' # No Color
 echo -e "${BLUE}Starting Prometheus and Grafana Launcher${NC}"
 echo "=================================================="
 
-# Function to cleanup on exit
+# Function to cleanup on exit (only used for --stop command)
 cleanup() {
     echo -e "\n${YELLOW}Cleaning up port forwarding processes...${NC}"
     pkill -f "port-forward.*grafana" 2>/dev/null || true
     pkill -f "port-forward.*prometheus" 2>/dev/null || true
     echo -e "${GREEN}Cleanup completed${NC}"
-    exit 0
 }
 
-# Trap cleanup on script exit
-trap cleanup EXIT INT TERM
+# Function to save PID files for background processes
+save_pids() {
+    mkdir -p ~/.kub-demo/pids
+    echo $PROMETHEUS_PF_PID > ~/.kub-demo/pids/prometheus.pid
+    echo $GRAFANA_PF_PID > ~/.kub-demo/pids/grafana.pid
+    echo -e "${GREEN}Process IDs saved for background monitoring${NC}"
+}
+
+# Function to check if monitoring processes are running
+check_monitoring_status() {
+    local prometheus_running=false
+    local grafana_running=false
+    
+    if [ -f ~/.kub-demo/pids/prometheus.pid ]; then
+        local prometheus_pid=$(cat ~/.kub-demo/pids/prometheus.pid)
+        if kill -0 $prometheus_pid 2>/dev/null; then
+            prometheus_running=true
+        fi
+    fi
+    
+    if [ -f ~/.kub-demo/pids/grafana.pid ]; then
+        local grafana_pid=$(cat ~/.kub-demo/pids/grafana.pid)
+        if kill -0 $grafana_pid 2>/dev/null; then
+            grafana_running=true
+        fi
+    fi
+    
+    return $([ "$prometheus_running" = true ] && [ "$grafana_running" = true ])
+}
+
+# Handle command line arguments first
+case "${1:-}" in
+    --status)
+        echo -e "${BLUE}Checking monitoring service status...${NC}"
+        if check_monitoring_status; then
+            echo -e "${GREEN}Monitoring services are running${NC}"
+            echo -e "Grafana: ${GREEN}http://localhost:$GRAFANA_PORT${NC}"
+            echo -e "Prometheus: ${GREEN}http://localhost:$PROMETHEUS_PORT${NC}"
+        else
+            echo -e "${RED}Monitoring services are not running${NC}"
+            echo "Use './scripts/launch-monitoring.sh' to start them"
+        fi
+        exit 0
+        ;;
+    --stop)
+        echo -e "${BLUE}Stopping monitoring services...${NC}"
+        cleanup
+        if [ -d ~/.kub-demo/pids ]; then
+            rm -f ~/.kub-demo/pids/prometheus.pid ~/.kub-demo/pids/grafana.pid
+        fi
+        echo -e "${GREEN}Monitoring services stopped${NC}"
+        exit 0
+        ;;
+    --background)
+        echo -e "${BLUE}Running in background mode${NC}"
+        ;;
+    *)
+        # Default mode - continue with normal execution
+        ;;
+esac
+
+# No automatic cleanup trap - let processes run in background
 
 # Check if kubectl is available
 if ! command -v kubectl &> /dev/null; then
@@ -100,6 +159,11 @@ pkill -f "port-forward.*grafana" 2>/dev/null || true
 pkill -f "port-forward.*prometheus" 2>/dev/null || true
 sleep 2
 
+# Clean up old PID files
+if [ -d ~/.kub-demo/pids ]; then
+    rm -f ~/.kub-demo/pids/prometheus.pid ~/.kub-demo/pids/grafana.pid
+fi
+
 # Check if ports are available
 echo -e "${BLUE}Checking port availability...${NC}"
 
@@ -117,13 +181,16 @@ fi
 
 # Start Prometheus port forwarding
 echo -e "${BLUE}Starting Prometheus port forwarding...${NC}"
-kubectl port-forward svc/prometheus $PROMETHEUS_PORT:9090 -n $NAMESPACE &
+kubectl port-forward svc/prometheus $PROMETHEUS_PORT:9090 -n $NAMESPACE > /dev/null 2>&1 &
 PROMETHEUS_PF_PID=$!
 
 # Start Grafana port forwarding
 echo -e "${BLUE}Starting Grafana port forwarding...${NC}"
-kubectl port-forward svc/grafana $GRAFANA_PORT:3000 -n $NAMESPACE &
+kubectl port-forward svc/grafana $GRAFANA_PORT:3000 -n $NAMESPACE > /dev/null 2>&1 &
 GRAFANA_PF_PID=$!
+
+# Save PIDs for background monitoring
+save_pids
 
 # Wait for port forwards to establish
 echo -e "${BLUE}Waiting for port forwards to establish...${NC}"
@@ -175,7 +242,12 @@ echo "   - kube_node_info - Node information"
 echo "   - kube_pod_info - Pod information"
 echo "   - rate(container_cpu_usage_seconds_total[5m]) - CPU usage"
 echo ""
-echo -e "${YELLOW}Tip: Keep this terminal open to maintain port forwarding${NC}"
+echo -e "${BLUE}Management Commands:${NC}"
+echo "   - Check status: ${GREEN}./scripts/launch-monitoring.sh --status${NC}"
+echo "   - Stop monitoring: ${GREEN}./scripts/launch-monitoring.sh --stop${NC}"
+echo ""
+echo -e "${GREEN}Port forwarding is now running in the background.${NC}"
+echo -e "${YELLOW}The monitoring services will continue running after this script exits.${NC}"
 echo "=================================================="
 
 # Check if browser opening is available
@@ -193,10 +265,5 @@ if command -v xdg-open &> /dev/null || command -v open &> /dev/null; then
     fi
 fi
 
-# Keep the script running
 echo ""
-echo -e "${BLUE}Port forwarding is active. Press Ctrl+C to stop.${NC}"
-echo ""
-
-# Wait for the port-forward processes
-wait $PROMETHEUS_PF_PID $GRAFANA_PF_PID
+echo -e "${GREEN}Script completed. Monitoring services are running in the background.${NC}"
