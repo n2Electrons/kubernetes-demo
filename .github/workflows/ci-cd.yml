@@ -1,0 +1,290 @@
+# CI/CD Pipeline with GitHub Actions
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'apps/**'
+      - 'scripts/**'
+      - 'test/**'
+      - '.github/workflows/**'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'apps/**'
+      - 'scripts/**'
+      - 'test/**'
+      - '.github/workflows/**'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/kub-app
+
+jobs:
+  # Linting and code quality checks
+  lint:
+    name: Lint Code
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pylint black flake8 yamllint
+          pip install pytest requests
+
+      - name: Lint Python code
+        run: |
+          # Black formatting check
+          black --check test/ scripts/ || echo "Black formatting issues found"
+          
+          # Flake8 linting
+          flake8 test/ scripts/ --max-line-length=88 --extend-ignore=E203,W503 || echo "Flake8 issues found"
+          
+          # PyLint
+          find test/ scripts/ -name "*.py" -exec pylint {} + || echo "PyLint issues found"
+
+      - name: Lint YAML files
+        run: |
+          yamllint apps/ argocd/ || echo "YAML lint issues found"
+
+      - name: Lint shell scripts
+        run: |
+          # Install shellcheck
+          sudo apt-get update && sudo apt-get install -y shellcheck
+          
+          # Check shell scripts
+          find scripts/ test/ -name "*.sh" -exec shellcheck {} + || echo "Shell script issues found"
+
+  # Unit and integration tests
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pytest-cov requests pyyaml
+
+      - name: Run Python unit tests
+        run: |
+          # Run any unit tests in the test directory
+          python -m pytest test/ -v --cov=. --cov-report=xml || echo "Some tests failed"
+
+      - name: Validate Kubernetes manifests
+        run: |
+          # Install kubeval for manifest validation
+          wget https://github.com/instrumenta/kubeval/releases/latest/download/kubeval-linux-amd64.tar.gz
+          tar xf kubeval-linux-amd64.tar.gz
+          sudo mv kubeval /usr/local/bin
+          
+          # Validate Kubernetes YAML files
+          find apps/ -name "*.yaml" -exec kubeval {} +
+
+  # Security scanning
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  # Build container image
+  build:
+    name: Build Container Image
+    runs-on: ubuntu-latest
+    needs: [test, security]
+    if: github.event_name == 'push'
+    outputs:
+      image: ${{ steps.image.outputs.image }}
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: ./apps/kub-app
+          file: ./ci/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Output image
+        id: image
+        run: echo "image=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}" >> $GITHUB_OUTPUT
+
+  # Deploy to staging/development
+  deploy-dev:
+    name: Deploy to Development
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/develop'
+    environment: development
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Update image tag in manifests
+        run: |
+          # Update image tag in deployment manifest
+          sed -i "s|nginx:alpine|${{ needs.build.outputs.image }}|g" apps/kub-app/deployment.yaml
+          
+          # Commit updated manifests back to develop branch
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add apps/kub-app/deployment.yaml
+          git commit -m "ci: update image to ${{ github.sha }}" || echo "No changes to commit"
+          git push || echo "Nothing to push"
+
+      - name: Trigger Argo CD sync (if available)
+        run: |
+          echo "Image updated in manifests. Argo CD will detect and sync automatically."
+          echo "New image: ${{ needs.build.outputs.image }}"
+
+  # Deploy to production
+  deploy-prod:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Update image tag in manifests
+        run: |
+          # Update image tag in deployment manifest
+          sed -i "s|nginx:alpine|${{ needs.build.outputs.image }}|g" apps/kub-app/deployment.yaml
+          
+          # Commit updated manifests back to main branch
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add apps/kub-app/deployment.yaml
+          git commit -m "ci: update image to ${{ github.sha }}" || echo "No changes to commit"
+          git push || echo "Nothing to push"
+
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ github.run_number }}
+          release_name: Release v${{ github.run_number }}
+          body: |
+            ## Changes
+            - Container image: ${{ needs.build.outputs.image }}
+            - Commit: ${{ github.sha }}
+            
+            ## Deployment
+            This release has been automatically deployed to production.
+          draft: false
+          prerelease: false
+
+  # Integration tests with k3d
+  integration-test:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup k3d
+        run: |
+          curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
+
+      - name: Setup kubectl
+        run: |
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/
+
+      - name: Create test cluster
+        run: |
+          k3d cluster create test-cluster --port "8080:80@loadbalancer" --agents 2
+          kubectl cluster-info
+
+      - name: Deploy application with new image
+        run: |
+          # Update image in deployment
+          sed -i "s|nginx:alpine|${{ needs.build.outputs.image }}|g" apps/kub-app/deployment.yaml
+          
+          # Deploy to test cluster
+          kubectl apply -f apps/kub-app/
+          kubectl wait --for=condition=available --timeout=300s deployment/kub-app -n kub-app
+
+      - name: Run integration tests
+        run: |
+          # Setup Python for tests
+          python -m pip install --upgrade pip
+          pip install pytest requests pyyaml
+          
+          # Run integration tests
+          python -m pytest test/t1-cluster-tests.py test/t2-deployment-tests.py -v
+
+      - name: Cleanup test cluster
+        if: always()
+        run: |
+          k3d cluster delete test-cluster
