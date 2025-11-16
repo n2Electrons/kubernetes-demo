@@ -44,7 +44,12 @@ Multi-node Kubernetes cluster with GitOps workflow using Argo CD for cloud-nativ
    ./scripts/setup-argocd.sh
    ```
 
-4. **Cleanup**
+4. **Setup Monitoring (Optional)**
+   ```bash
+   ./scripts/setup-monitoring.sh
+   ```
+
+5. **Cleanup**
    ```bash
    ./scripts/cleanup-cluster.sh
    ```
@@ -58,7 +63,7 @@ Multi-node Kubernetes cluster with GitOps workflow using Argo CD for cloud-nativ
 - **Phase 5** ✅ COMPLETE - CI/CD Pipeline with GitHub Actions
 - **Phase 6** TODO - Terraform + Ansible + Vault
 - **Phase 7** TODO - Testing & Autoscaling Validation
-- **Phase 8** TODO - Observability (Optional)
+- **Phase 8** COMPLETE - Monitoring Stack
 
 ### Phase 2 - Multi-node Application Deployment
 
@@ -360,10 +365,89 @@ docker run --rm -v $PWD:/workspace aquasec/trivy fs /workspace
 **Production Environment**
 - **Trigger**: Manual on main branch push
 - **Approval**: Required reviewers
-- **Monitoring**: Full observability
+- **Monitoring**: Full monitoring
 - **Rollback**: Manual with approval
 
 For detailed CI/CD configuration and troubleshooting, see `docs/phase5-implementation.md`.
+
+### Phase 8 - Monitoring Stack
+
+This phase implements comprehensive monitoring with monitoring, logging, tracing, and alerting for complete visibility into cluster and application performance.
+
+#### Monitoring Architecture
+
+**Complete Monitoring Stack**
+```
+Prometheus (metrics) → Grafana (dashboards) → AlertManager (alerts)
+     ↕                       ↕                       ↕
+Fluent Bit (logs) ← → Jaeger (tracing) ← → Kubernetes Cluster
+```
+
+#### Stack Components
+
+**1. Prometheus** (Metrics Collection)
+- **Purpose**: Metrics collection, storage, and querying
+- **Features**: Kubernetes cluster metrics, application performance monitoring
+- **Auto-discovery**: Pods, services, nodes with proper annotations
+- **Retention**: 15 days of metrics history
+
+**2. Grafana** (Visualization & Dashboards)
+- **Purpose**: Metrics visualization and operational dashboards
+- **Access**: http://grafana.local:8080 (admin/admin123)
+- **Pre-built Dashboards**: Cluster overview, kub-app metrics, HPA scaling
+- **Real-time Monitoring**: Live metrics with 5-second refresh
+
+**3. Jaeger** (Distributed Tracing)
+- **Purpose**: End-to-end request tracing and performance analysis
+- **Access**: http://jaeger.local:8080
+- **Features**: Request flow visualization, bottleneck identification
+- **Integration**: OpenTelemetry compatible
+
+**4. AlertManager** (Alerting & Notifications)
+- **Purpose**: Alert routing and notification management
+- **Channels**: Email, Slack, webhooks (configurable)
+- **Rules**: CPU/memory thresholds, pod failures, service unavailability
+- **Smart Routing**: Alert grouping and deduplication
+
+**5. Fluent Bit** (Centralized Logging)
+- **Purpose**: Log aggregation from all cluster components
+- **Collection**: Container logs with Kubernetes metadata enrichment
+- **Outputs**: Stdout, Elasticsearch, Loki (configurable)
+- **Performance**: Lightweight DaemonSet deployment
+
+#### Monitoring Setup
+
+**Deploy Complete Stack**
+```bash
+# Deploy all observability components
+./scripts/setup-observability.sh
+
+# Verify deployment
+kubectl get all -n monitoring
+
+# Run validation tests
+pytest test/t8-observability-tests.py -v
+```
+
+**Access Monitoring Services**
+```bash
+# Add hosts for ingress access
+echo "127.0.0.1 grafana.local jaeger.local" | sudo tee -a /etc/hosts
+
+# Grafana Dashboard (admin/admin123)
+http://grafana.local:8080
+
+# Jaeger Tracing UI
+http://jaeger.local:8080
+
+# Prometheus (via port-forward)
+kubectl port-forward svc/prometheus 9090:9090 -n monitoring
+
+# AlertManager (via port-forward)  
+kubectl port-forward svc/alertmanager 9093:9093 -n monitoring
+```
+
+For detailed monitoring configuration and troubleshooting, see `docs/phase8-monitoring.md`.
 
 ## NGINX Core Functions
 
