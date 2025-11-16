@@ -12,7 +12,7 @@ import threading
 import queue
 import os
 from typing import Dict, List, Tuple
-from test_reporter import DeploymentReporter, generate_comprehensive_report
+from .test_reporter import DeploymentReporter, generate_comprehensive_report
 
 
 # Global variable to collect load test results for reporting

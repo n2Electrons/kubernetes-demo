@@ -40,6 +40,20 @@ Tests for **Phase 3 - Deployment Validation and Load Testing**:
 - **Performance Metrics**: Requests per second, failure rates, response times, HPA scaling behavior
 - **Integration Testing**: End-to-end validation combining all deployment and performance aspects
 
+### t8-monitoring-tests.py
+Tests for **Phase 8 - Monitoring Stack Deployment**:
+- **Infrastructure Validation**: Monitoring namespace creation, monitoring stack deployment
+- **Component Testing**: Prometheus metrics collection, Grafana dashboard accessibility, AlertManager configuration, Jaeger distributed tracing, Fluent Bit log aggregation
+- **Service Integration**: Service discovery, metrics scraping, log collection, trace correlation
+- **External Access**: Ingress configuration for Grafana and Jaeger dashboards
+
+### t9-monitoring-status-tests.py
+Tests for **Phase 9 - Monitoring Stack Status Validation**:
+- **Infrastructure Tests**: Monitoring namespace validation, pod readiness verification, service accessibility testing, ingress configuration validation
+- **Component-Specific Tests**: Prometheus API endpoint testing, Fluent Bit DaemonSet coverage validation
+- **Integration Tests**: Complete monitoring stack status validation with comprehensive output display
+- **Expected Components**: Prometheus (metrics), Grafana (visualization), AlertManager (alerting), Jaeger (tracing), Fluent Bit (logging)
+
 ## Phase 3 - Deployment Validation
 
 ### Comprehensive Testing
@@ -51,6 +65,25 @@ Complete deployment validation and load testing:
 - **Scaling Validation**: HPA behavior monitoring during load tests
 - **Concurrent Handling**: Multi-threaded request testing
 - **Performance Metrics**: Response times, throughput, failure rates
+
+## Phase 8/9 - Monitoring Stack Validation
+
+### Monitoring Deployment Testing
+
+**t8-monitoring-tests.py**
+Complete monitoring stack deployment validation:
+- **Stack Deployment**: Monitoring namespace, pod deployment status, service configuration
+- **Component Integration**: Prometheus metrics, Grafana dashboards, AlertManager rules, Jaeger tracing, Fluent Bit logging
+- **Metrics Collection**: Kubelet metrics validation, service discovery verification
+- **External Access**: Ingress validation for dashboard access
+
+**t9-monitoring-status-tests.py**
+Comprehensive monitoring stack status validation:
+- **Infrastructure Validation**: Namespace existence, pod readiness (7 comprehensive tests)
+- **Service Testing**: ClusterIP assignments, correct port configurations, endpoint validation
+- **Component Verification**: Prometheus API endpoint accessibility, Fluent Bit DaemonSet coverage across all nodes
+- **Integration Status**: Complete stack status display with real-time output validation
+- **Expected Components**: All 5 monitoring components (Prometheus, Grafana, AlertManager, Jaeger, Fluent Bit) operational
 
 ### Running Phase 3 Validation
 
@@ -73,6 +106,37 @@ pytest test/t4-validate-deployment.py::TestDeploymentValidation -v
 
 # Load testing only  
 pytest test/t4-validate-deployment.py::TestLoadTesting -v -s
+```
+
+### Running Monitoring Stack Validation
+
+**Phase 8 - Monitoring deployment testing:**
+```bash
+# Run monitoring stack deployment tests
+python3 test/t8-monitoring-tests.py -v
+
+# Run automated monitoring deployment
+./scripts/setup-monitoring.sh
+```
+
+**Phase 9 - Monitoring status validation:**
+```bash
+# Run monitoring status tests
+python3 test/t9-monitoring-status-tests.py
+
+# Run with verbose output
+python3 test/t9-monitoring-status-tests.py -v
+```
+
+**Complete monitoring validation:**
+```bash
+# Manual monitoring stack status check (executed by t9 tests)
+echo "=== Monitoring Stack Status ===" && \
+kubectl get pods -n monitoring && \
+echo -e "\n=== Services ===" && \
+kubectl get svc -n monitoring && \
+echo -e "\n=== Ingresses ===" && \
+kubectl get ingress -n monitoring
 ```
 
 ## Test Reporting
@@ -140,6 +204,12 @@ pytest test/t3-nginx-access.py -v
 # Run deployment validation and load tests
 pytest test/t4-validate-deployment.py -v
 
+# Run monitoring stack deployment tests
+python3 test/t8-monitoring-tests.py -v
+
+# Run monitoring status validation tests
+python3 test/t9-monitoring-status-tests.py -v
+
 # Run all tests
 pytest test/ -v
 ```
@@ -166,6 +236,15 @@ pytest test/ -v
 - kubectl configured and cluster accessible
 - Cluster must be running (use `./scripts/setup-cluster.sh`)
 - For t2 tests: Application must be deployed (automatic via test runner)
+- For t8/t9 tests: Monitoring stack must be deployed (use `./scripts/setup-monitoring.sh`)
+
+### Monitoring Stack Dependencies
+
+**Phase 8/9 Requirements:**
+- kubectl configured for cluster access
+- Monitoring stack deployed in 'monitoring' namespace
+- All monitoring components operational: Prometheus, Grafana, AlertManager, Jaeger, Fluent Bit
+- Ingress configuration for external dashboard access
 
 ## Test Output
 
