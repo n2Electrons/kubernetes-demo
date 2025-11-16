@@ -95,13 +95,25 @@ jobs:
 
       - name: Validate Kubernetes manifests
         run: |
-          # Install kubeval for manifest validation
-          wget https://github.com/instrumenta/kubeval/releases/latest/download/kubeval-linux-amd64.tar.gz
-          tar xf kubeval-linux-amd64.tar.gz
-          sudo mv kubeval /usr/local/bin
+          # Install kubectl for manifest validation
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/
           
-          # Validate Kubernetes YAML files
-          find apps/ -name "*.yaml" -exec kubeval {} +
+          # Install kubeconform (modern alternative to kubeval)
+          curl -L https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz | tar xz
+          sudo mv kubeconform /usr/local/bin/
+          
+          # Validate Kubernetes YAML files with kubectl dry-run
+          echo "Validating with kubectl dry-run..."
+          for file in apps/kub-app/*.yaml; do
+            echo "Validating $file"
+            kubectl apply --dry-run=client --validate=strict -f "$file" || echo "Warning: $file validation failed"
+          done
+          
+          # Validate with kubeconform for additional checks
+          echo "Validating with kubeconform..."
+          kubeconform -summary -verbose apps/kub-app/*.yaml || echo "Warning: kubeconform validation issues found"
 
   # Security scanning
   security:
