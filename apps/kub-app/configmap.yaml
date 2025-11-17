@@ -64,7 +64,7 @@ data:
             # Health check endpoint
             location /health {
                 access_log off;
-                return 200 "healthy\n";
+                return 200 "healthy - v1.1\n";
                 add_header Content-Type text/plain;
             }
 
