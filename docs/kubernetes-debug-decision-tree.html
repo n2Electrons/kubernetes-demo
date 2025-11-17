@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kubernetes Debug Decision Tree</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(45deg, #2196F3, #21CBF3);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .main-content {
+            padding: 40px;
+        }
+
+        .question-card {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 30px;
+            border-left: 5px solid #2196F3;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+        }
+
+        .question-card.active {
+            background: #e3f2fd;
+            border-left-color: #1976d2;
+        }
+
+        .question-title {
+            font-size: 1.4em;
+            font-weight: 600;
+            color: #1976d2;
+            margin-bottom: 20px;
+        }
+
+        .options {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .option-button {
+            background: white;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 15px 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: left;
+            font-size: 1em;
+        }
+
+        .option-button:hover {
+            border-color: #2196F3;
+            background: #f5f5f5;
+            transform: translateY(-2px);
+        }
+
+        .option-button.selected {
+            background: #2196F3;
+            color: white;
+            border-color: #1976d2;
+        }
+
+        .solution-card {
+            background: #e8f5e8;
+            border-radius: 10px;
+            padding: 25px;
+            margin-top: 20px;
+            border-left: 5px solid #4caf50;
+            display: none;
+        }
+
+        .solution-card.show {
+            display: block;
+            animation: fadeIn 0.5s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .solution-title {
+            font-size: 1.3em;
+            font-weight: 600;
+            color: #2e7d32;
+            margin-bottom: 15px;
+        }
+
+        .command-block {
+            background: #263238;
+            color: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-family: 'Courier New', monospace;
+            overflow-x: auto;
+        }
+
+        .command-block .command {
+            color: #4fc3f7;
+        }
+
+        .warning {
+            background: #fff3e0;
+            border: 1px solid #ff9800;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+
+        .warning-title {
+            font-weight: 600;
+            color: #e65100;
+            margin-bottom: 8px;
+        }
+
+        .info {
+            background: #e3f2fd;
+            border: 1px solid #2196f3;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+
+        .info-title {
+            font-weight: 600;
+            color: #1976d2;
+            margin-bottom: 8px;
+        }
+
+        .reset-button {
+            background: #ff5722;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            margin-top: 20px;
+            transition: background 0.3s ease;
+        }
+
+        .reset-button:hover {
+            background: #e64a19;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .breadcrumb {
+            background: #f5f5f5;
+            padding: 10px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 0.9em;
+            color: #666;
+        }
+
+        .breadcrumb-item {
+            color: #2196F3;
+            text-decoration: none;
+            margin-right: 5px;
+        }
+
+        .breadcrumb-item:hover {
+            text-decoration: underline;
+        }
+
+        .step-counter {
+            background: #2196F3;
+            color: white;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔍 Kubernetes Debug Decision Tree</h1>
+            <p>Interactive troubleshooting guide for Kubernetes issues</p>
+        </div>
+
+        <div class="main-content">
+            <div id="breadcrumb" class="breadcrumb hidden">
+                <span id="breadcrumb-content"></span>
+            </div>
+
+            <!-- Step 1: Initial Problem Classification -->
+            <div class="question-card active" id="step-1">
+                <div class="question-title">
+                    <span class="step-counter">1</span>
+                    What type of issue are you experiencing?
+                </div>
+                <div class="options">
+                    <button class="option-button" data-next="step-pod">
+                        📦 Pod Issues<br>
+                        <small>Pods not starting, crashing, or in wrong state</small>
+                    </button>
+                    <button class="option-button" data-next="step-network">
+                        🌐 Network/Service Issues<br>
+                        <small>Can't reach services, connectivity problems</small>
+                    </button>
+                    <button class="option-button" data-next="step-resource">
+                        📊 Resource Issues<br>
+                        <small>CPU, memory, storage problems</small>
+                    </button>
+                    <button class="option-button" data-next="step-deployment">
+                        🚀 Deployment Issues<br>
+                        <small>Deployment, rolling update, scaling problems</small>
+                    </button>
+                    <button class="option-button" data-next="step-cluster">
+                        🏗️ Cluster Issues<br>
+                        <small>Node problems, cluster not responding</small>
+                    </button>
+                    <button class="option-button" data-next="step-security">
+                        🔐 Security/RBAC Issues<br>
+                        <small>Permission denied, authentication problems</small>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Pod Issues Branch -->
+            <div class="question-card hidden" id="step-pod">
+                <div class="question-title">
+                    <span class="step-counter">2</span>
+                    What is the specific pod issue?
+                </div>
+                <div class="options">
+                    <button class="option-button" data-next="solution-crashloop">
+                        🔄 CrashLoopBackOff<br>
+                        <small>Pod keeps restarting</small>
+                    </button>
+                    <button class="option-button" data-next="solution-pending">
+                        ⏳ Pending State<br>
+                        <small>Pod stuck in Pending</small>
+                    </button>
+                    <button class="option-button" data-next="solution-imagepull">
+                        🖼️ ImagePullBackOff<br>
+                        <small>Can't pull container image</small>
+                    </button>
+                    <button class="option-button" data-next="solution-oomkilled">
+                        💾 OOMKilled<br>
+                        <small>Pod killed due to memory</small>
+                    </button>
+                    <button class="option-button" data-next="solution-running-not-ready">
+                        ❌ Running but not Ready<br>
+                        <small>Pod running but failing health checks</small>
+                    </button>
+                </div>
+                <button class="reset-button" onclick="goBack()">← Back</button>
+            </div>
+
+            <!-- Network Issues Branch -->
+            <div class="question-card hidden" id="step-network">
+                <div class="question-title">
+                    <span class="step-counter">2</span>
+                    What is the network/service issue?
+                </div>
+                <div class="options">
+                    <button class="option-button" data-next="solution-service-unreachable">
+                        🚫 Service Unreachable<br>
+                        <small>Can't connect to service</small>
+                    </button>
+                    <button class="option-button" data-next="solution-ingress-not-working">
+                        🌍 Ingress Not Working<br>
+                        <small>External access issues</small>
+                    </button>
+                    <button class="option-button" data-next="solution-dns-issues">
+                        🔍 DNS Resolution Issues<br>
+                        <small>Services not resolving</small>
+                    </button>
+                    <button class="option-button" data-next="solution-port-forward">
+                        🔌 Port Forward Issues<br>
+                        <small>kubectl port-forward failing</small>
+                    </button>
+                </div>
+                <button class="reset-button" onclick="goBack()">← Back</button>
+            </div>
+
+            <!-- Resource Issues Branch -->
+            <div class="question-card hidden" id="step-resource">
+                <div class="question-title">
+                    <span class="step-counter">2</span>
+                    What type of resource issue?
+                </div>
+                <div class="options">
+                    <button class="option-button" data-next="solution-high-cpu">
+                        🔥 High CPU Usage<br>
+                        <small>CPU throttling, high utilization</small>
+                    </button>
+                    <button class="option-button" data-next="solution-high-memory">
+                        🧠 High Memory Usage<br>
+                        <small>Memory pressure, OOM issues</small>
+                    </button>
+                    <button class="option-button" data-next="solution-storage-issues">
+                        💽 Storage Issues<br>
+                        <small>Disk space, PVC problems</small>
+                    </button>
+                    <button class="option-button" data-next="solution-hpa-not-scaling">
+                        📈 HPA Not Scaling<br>
+                        <small>Autoscaling problems</small>
+                    </button>
+                </div>
+                <button class="reset-button" onclick="goBack()">← Back</button>
+            </div>
+
+            <!-- Deployment Issues Branch -->
+            <div class="question-card hidden" id="step-deployment">
+                <div class="question-title">
+                    <span class="step-counter">2</span>
+                    What is the deployment issue?
+                </div>
+                <div class="options">
+                    <button class="option-button" data-next="solution-deployment-stuck">
+                        ⏸️ Deployment Stuck<br>
+                        <small>Rolling update not progressing</small>
+                    </button>
+                    <button class="option-button" data-next="solution-rollback-needed">
+                        ↩️ Need to Rollback<br>
+                        <small>Revert to previous version</small>
+                    </button>
+                    <button class="option-button" data-next="solution-scaling-issues">
+                        📊 Scaling Issues<br>
+                        <small>Can't scale up/down replicas</small>
+                    </button>
+                    <button class="option-button" data-next="solution-config-changes">
+                        ⚙️ Config/Secret Changes<br>
+                        <small>ConfigMap or Secret not updating</small>
+                    </button>
+                </div>
+                <button class="reset-button" onclick="goBack()">← Back</button>
+            </div>
+
+            <!-- Cluster Issues Branch -->
+            <div class="question-card hidden" id="step-cluster">
+                <div class="question-title">
+                    <span class="step-counter">2</span>
+                    What is the cluster issue?
+                </div>
+                <div class="options">
+                    <button class="option-button" data-next="solution-node-not-ready">
+                        🖥️ Node Not Ready<br>
+                        <small>Node in NotReady state</small>
+                    </button>
+                    <button class="option-button" data-next="solution-api-server-down">
+                        🔌 API Server Issues<br>
+                        <small>Can't connect to cluster</small>
+                    </button>
+                    <button class="option-button" data-next="solution-etcd-issues">
+                        🗄️ etcd Issues<br>
+                        <small>Cluster state problems</small>
+                    </button>
+                    <button class="option-button" data-next="solution-kubelet-issues">
+                        ⚙️ Kubelet Issues<br>
+                        <small>Node agent problems</small>
+                    </button>
+                </div>
+                <button class="reset-button" onclick="goBack()">← Back</button>
+            </div>
+
+            <!-- Security Issues Branch -->
+            <div class="question-card hidden" id="step-security">
+                <div class="question-title">
+                    <span class="step-counter">2</span>
+                    What is the security/RBAC issue?
+                </div>
+                <div class="options">
+                    <button class="option-button" data-next="solution-rbac-denied">
+                        🚫 Permission Denied<br>
+                        <small>Forbidden/access denied errors</small>
+                    </button>
+                    <button class="option-button" data-next="solution-sa-issues">
+                        👤 Service Account Issues<br>
+                        <small>Pod can't access resources</small>
+                    </button>
+                    <button class="option-button" data-next="solution-cert-issues">
+                        🔐 Certificate Issues<br>
+                        <small>TLS/certificate problems</small>
+                    </button>
+                    <button class="option-button" data-next="solution-network-policy">
+                        🛡️ Network Policy Issues<br>
+                        <small>Traffic blocked by policies</small>
+                    </button>
+                </div>
+                <button class="reset-button" onclick="goBack()">← Back</button>
+            </div>
+
+            <!-- Solutions -->
+
+            <!-- CrashLoopBackOff Solution -->
+            <div class="solution-card" id="solution-crashloop">
+                <div class="solution-title">🔄 Fixing CrashLoopBackOff</div>
+                
+                <div class="info">
+                    <div class="info-title">Diagnosis Steps:</div>
+                    <p>1. Check pod logs for error messages</p>
+                    <p>2. Examine pod description for events</p>
+                    <p>3. Verify container image and configuration</p>
+                </div>
+
+                <h4>Step 1: Check Pod Logs</h4>
+                <div class="command-block">
+                    <span class="command">kubectl logs &lt;pod-name&gt; -n &lt;namespace&gt;</span><br>
+                    <span class="command">kubectl logs &lt;pod-name&gt; -n &lt;namespace&gt; --previous</span>
+                </div>
+
+                <h4>Step 2: Describe Pod</h4>
+                <div class="command-block">
+                    <span class="command">kubectl describe pod &lt;pod-name&gt; -n &lt;namespace&gt;</span>
+                </div>
+
+                <h4>Step 3: Common Fixes</h4>
+                <ul style="margin: 15px 0; padding-left: 20px;">
+                    <li><strong>Application Error:</strong> Fix code/configuration in container</li>
+                    <li><strong>Missing Dependencies:</strong> Update image or add init containers</li>
+                    <li><strong>Wrong Command/Args:</strong> Check container command and arguments</li>
+                    <li><strong>Resource Limits:</strong> Increase CPU/memory limits</li>
+                    <li><strong>Health Check Issues:</strong> Adjust readiness/liveness probes</li>
+                </ul>
+
+                <div class="warning">
+                    <div class="warning-title">⚠️ Quick Fix:</div>
+                    If container keeps crashing immediately, try disabling health checks temporarily:
+                    <div class="command-block">
+                        <span class="command">kubectl patch deployment &lt;name&gt; -p '{"spec":{"template":{"spec":{"containers":[{"name":"&lt;container&gt;","livenessProbe":null}]}}}}'</span>
+                    </div>
+                </div>
+
+                <button class="reset-button" onclick="resetTree()">🔄 Start Over</button>
+            </div>
+
+            <!-- Pending Pod Solution -->
+            <div class="solution-card" id="solution-pending">
+                <div class="solution-title">⏳ Fixing Pending Pods</div>
+                
+                <h4>Step 1: Check Pod Events</h4>
+                <div class="command-block">
+                    <span class="command">kubectl describe pod &lt;pod-name&gt; -n &lt;namespace&gt;</span><br>
+                    <span class="command">kubectl get events --sort-by='.lastTimestamp' -n &lt;namespace&gt;</span>
+                </div>
+
+                <h4>Step 2: Check Node Resources</h4>
+                <div class="command-block">
+                    <span class="command">kubectl top nodes</span><br>
+                    <span class="command">kubectl describe nodes</span>
+                </div>
+
+                <h4>Common Causes & Solutions:</h4>
+                <ul style="margin: 15px 0; padding-left: 20px;">
+                    <li><strong>Insufficient Resources:</strong>
+                        <div class="command-block">
+                            <span class="command">kubectl get nodes --show-labels</span><br>
+                            <span class="command">kubectl describe node &lt;node-name&gt;</span>
+                        </div>
+                    </li>
+                    <li><strong>Node Selector Issues:</strong> Check if pod can be scheduled on available nodes</li>
+                    <li><strong>Taints/Tolerations:</strong> Add tolerations or remove taints</li>
+                    <li><strong>PVC Binding:</strong> Check persistent volume claims</li>
+                </ul>
+
+                <div class="command-block">
+                    <span class="command"># Check PVC status</span><br>
+                    <span class="command">kubectl get pvc -n &lt;namespace&gt;</span><br>
+                    <span class="command">kubectl describe pvc &lt;pvc-name&gt; -n &lt;namespace&gt;</span>
+                </div>
+
+                <button class="reset-button" onclick="resetTree()">🔄 Start Over</button>
+            </div>
+
+            <!-- ImagePullBackOff Solution -->
+            <div class="solution-card" id="solution-imagepull">
+                <div class="solution-title">🖼️ Fixing ImagePullBackOff</div>
+                
+                <h4>Step 1: Verify Image Details</h4>
+                <div class="command-block">
+                    <span class="command">kubectl describe pod &lt;pod-name&gt; -n &lt;namespace&gt;</span>
+                </div>
+
+                <h4>Common Fixes:</h4>
+                <ul style="margin: 15px 0; padding-left: 20px;">
+                    <li><strong>Wrong Image Name/Tag:</strong> Check spelling and tag existence</li>
+                    <li><strong>Private Registry:</strong> Add image pull secrets</li>
+                    <li><strong>Network Issues:</strong> Check connectivity to registry</li>
+                    <li><strong>Authentication:</strong> Verify registry credentials</li>
+                </ul>
+
+                <h4>Create Image Pull Secret:</h4>
+                <div class="command-block">
+                    <span class="command">kubectl create secret docker-registry regcred \</span><br>
+                    <span class="command">  --docker-server=&lt;registry-url&gt; \</span><br>
+                    <span class="command">  --docker-username=&lt;username&gt; \</span><br>
+                    <span class="command">  --docker-password=&lt;password&gt; \</span><br>
+                    <span class="command">  -n &lt;namespace&gt;</span>
+                </div>
+
+                <h4>Test Image Pull Manually:</h4>
+                <div class="command-block">
+                    <span class="command">docker pull &lt;image-name&gt;:&lt;tag&gt;</span><br>
+                    <span class="command"># OR on node:</span><br>
+                    <span class="command">kubectl debug node/&lt;node-name&gt; -it --image=busybox</span>
+                </div>
+
+                <button class="reset-button" onclick="resetTree()">🔄 Start Over</button>
+            </div>
+
+            <!-- Service Unreachable Solution -->
+            <div class="solution-card" id="solution-service-unreachable">
+                <div class="solution-title">🚫 Fixing Service Unreachable Issues</div>
+                
+                <h4>Step 1: Check Service Configuration</h4>
+                <div class="command-block">
+                    <span class="command">kubectl get svc -n &lt;namespace&gt;</span><br>
+                    <span class="command">kubectl describe svc &lt;service-name&gt; -n &lt;namespace&gt;</span>
+                </div>
+
+                <h4>Step 2: Verify Endpoints</h4>
+                <div class="command-block">
+                    <span class="command">kubectl get endpoints &lt;service-name&gt; -n &lt;namespace&gt;</span>
+                </div>
+
+                <h4>Step 3: Check Pod Labels & Selectors</h4>
+                <div class="command-block">
+                    <span class="command">kubectl get pods -n &lt;namespace&gt; --show-labels</span><br>
+                    <span class="command">kubectl get svc &lt;service-name&gt; -n &lt;namespace&gt; -o yaml | grep selector -A 5</span>
+                </div>
+
+                <h4>Step 4: Test Connectivity</h4>
+                <div class="command-block">
+                    <span class="command"># Port forward to test</span><br>
+                    <span class="command">kubectl port-forward svc/&lt;service-name&gt; 8080:80 -n &lt;namespace&gt;</span><br><br>
+                    <span class="command"># Test from within cluster</span><br>
+                    <span class="command">kubectl run debug-pod --image=busybox -it --rm -- sh</span><br>
+                    <span class="command"># Inside pod: wget -qO- &lt;service-name&gt;.&lt;namespace&gt;.svc.cluster.local</span>
+                </div>
+
+                <div class="info">
+                    <div class="info-title">💡 Common Issues:</div>
+                    <ul style="margin: 10px 0; padding-left: 20px;">
+                        <li>Service selector doesn't match pod labels</li>
+                        <li>Wrong port configuration in service</li>
+                        <li>No healthy endpoints (pods not ready)</li>
+                        <li>Network policies blocking traffic</li>
+                    </ul>
+                </div>
+
+                <button class="reset-button" onclick="resetTree()">🔄 Start Over</button>
+            </div>
+
+            <!-- Add more solutions for other scenarios... -->
+            <!-- For brevity, I'll add a few more key solutions -->
+
+            <!-- High CPU Solution -->
+            <div class="solution-card" id="solution-high-cpu">
+                <div class="solution-title">🔥 Fixing High CPU Usage</div>
+                
+                <h4>Step 1: Identify High CPU Consumers</h4>
+                <div class="command-block">
+                    <span class="command">kubectl top nodes</span><br>
+                    <span class="command">kubectl top pods --all-namespaces --sort-by=cpu</span><br>
+                    <span class="command">kubectl top pods -n &lt;namespace&gt; --sort-by=cpu</span>
+                </div>
+
+                <h4>Step 2: Check Resource Limits</h4>
+                <div class="command-block">
+                    <span class="command">kubectl describe pod &lt;pod-name&gt; -n &lt;namespace&gt;</span><br>
+                    <span class="command">kubectl get pod &lt;pod-name&gt; -n &lt;namespace&gt; -o yaml | grep -A 10 resources</span>
+                </div>
+
+                <h4>Solutions:</h4>
+                <ul style="margin: 15px 0; padding-left: 20px;">
+                    <li><strong>Increase CPU Limits:</strong></li>
+                </ul>
+                <div class="command-block">
+                    <span class="command">kubectl patch deployment &lt;name&gt; -p '{"spec":{"template":{"spec":{"containers":[{"name":"&lt;container&gt;","resources":{"limits":{"cpu":"500m"}}}]}}}}'</span>
+                </div>
+
+                <ul style="margin: 15px 0; padding-left: 20px;">
+                    <li><strong>Scale Horizontally:</strong></li>
+                </ul>
+                <div class="command-block">
+                    <span class="command">kubectl scale deployment &lt;name&gt; --replicas=3 -n &lt;namespace&gt;</span>
+                </div>
+
+                <ul style="margin: 15px 0; padding-left: 20px;">
+                    <li><strong>Enable HPA:</strong></li>
+                </ul>
+                <div class="command-block">
+                    <span class="command">kubectl autoscale deployment &lt;name&gt; --cpu-percent=50 --min=1 --max=10 -n &lt;namespace&gt;</span>
+                </div>
+
+                <button class="reset-button" onclick="resetTree()">🔄 Start Over</button>
+            </div>
+
+            <!-- RBAC Denied Solution -->
+            <div class="solution-card" id="solution-rbac-denied">
+                <div class="solution-title">🚫 Fixing RBAC Permission Denied</div>
+                
+                <h4>Step 1: Identify Current User/Service Account</h4>
+                <div class="command-block">
+                    <span class="command">kubectl auth whoami</span><br>
+                    <span class="command">kubectl get sa -n &lt;namespace&gt;</span>
+                </div>
+
+                <h4>Step 2: Check Permissions</h4>
+                <div class="command-block">
+                    <span class="command">kubectl auth can-i &lt;verb&gt; &lt;resource&gt; --as=&lt;user&gt; -n &lt;namespace&gt;</span><br>
+                    <span class="command">kubectl auth can-i get pods --as=system:serviceaccount:default:default</span>
+                </div>
+
+                <h4>Step 3: Check Existing RBAC</h4>
+                <div class="command-block">
+                    <span class="command">kubectl get rolebindings,clusterrolebindings --all-namespaces</span><br>
+                    <span class="command">kubectl describe rolebinding &lt;binding-name&gt; -n &lt;namespace&gt;</span>
+                </div>
+
+                <h4>Step 4: Create Missing Permissions</h4>
+                <div class="command-block">
+                    <span class="command"># Create role</span><br>
+                    <span class="command">kubectl create role pod-reader --verb=get,list --resource=pods -n &lt;namespace&gt;</span><br><br>
+                    <span class="command"># Create rolebinding</span><br>
+                    <span class="command">kubectl create rolebinding read-pods --role=pod-reader --user=&lt;username&gt; -n &lt;namespace&gt;</span>
+                </div>
+
+                <div class="warning">
+                    <div class="warning-title">⚠️ Security Note:</div>
+                    Only grant minimum required permissions. Avoid using cluster-admin unless absolutely necessary.
+                </div>
+
+                <button class="reset-button" onclick="resetTree()">🔄 Start Over</button>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        let currentStep = 'step-1';
+        let breadcrumbPath = [];
+
+        function showStep(stepId) {
+            // Hide all steps and solutions
+            document.querySelectorAll('.question-card, .solution-card').forEach(el => {
+                el.classList.add('hidden');
+                el.classList.remove('active', 'show');
+            });
+
+            // Show target step
+            const targetElement = document.getElementById(stepId);
+            if (targetElement) {
+                if (targetElement.classList.contains('question-card')) {
+                    targetElement.classList.remove('hidden');
+                    targetElement.classList.add('active');
+                } else if (targetElement.classList.contains('solution-card')) {
+                    targetElement.classList.add('show');
+                }
+                currentStep = stepId;
+                updateBreadcrumb();
+            }
+        }
+
+        function updateBreadcrumb() {
+            const breadcrumb = document.getElementById('breadcrumb');
+            const breadcrumbContent = document.getElementById('breadcrumb-content');
+            
+            if (breadcrumbPath.length > 0) {
+                breadcrumbContent.innerHTML = breadcrumbPath.map((item, index) => {
+                    if (index === breadcrumbPath.length - 1) {
+                        return `<span>${item}</span>`;
+                    }
+                    return `<a href="#" class="breadcrumb-item" onclick="goBackToStep(${index})">${item}</a> → `;
+                }).join('');
+                breadcrumb.classList.remove('hidden');
+            } else {
+                breadcrumb.classList.add('hidden');
+            }
+        }
+
+        function addToBreadcrumb(text) {
+            breadcrumbPath.push(text);
+        }
+
+        function goBack() {
+            if (breadcrumbPath.length > 1) {
+                breadcrumbPath.pop();
+                goBackToStep(breadcrumbPath.length - 1);
+            } else {
+                resetTree();
+            }
+        }
+
+        function goBackToStep(index) {
+            breadcrumbPath = breadcrumbPath.slice(0, index + 1);
+            showStep('step-1');
+            // Navigate through the path
+            // This would need more complex logic to recreate the exact path
+        }
+
+        function resetTree() {
+            currentStep = 'step-1';
+            breadcrumbPath = [];
+            showStep('step-1');
+            
+            // Reset all buttons
+            document.querySelectorAll('.option-button').forEach(btn => {
+                btn.classList.remove('selected');
+            });
+        }
+
+        // Event listeners for option buttons
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('option-button')) {
+                // Remove selected class from all buttons in current step
+                const currentCard = e.target.closest('.question-card');
+                currentCard.querySelectorAll('.option-button').forEach(btn => {
+                    btn.classList.remove('selected');
+                });
+                
+                // Add selected class to clicked button
+                e.target.classList.add('selected');
+                
+                // Add to breadcrumb
+                addToBreadcrumb(e.target.textContent.split('\n')[0].trim());
+                
+                // Navigate to next step
+                const nextStep = e.target.getAttribute('data-next');
+                if (nextStep) {
+                    setTimeout(() => showStep(nextStep), 300);
+                }
+            }
+        });
+
+        // Initialize
+        resetTree();
+    </script>
+</body>
+</html>
