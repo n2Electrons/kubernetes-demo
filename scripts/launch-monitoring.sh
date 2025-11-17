@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Launch Prometheus and Grafana with Port Forwarding
-# This script sets up access to both monitoring services
+# Launch Prometheus, Grafana, and ArgoCD with Port Forwarding
+# This script sets up access to monitoring and GitOps services
 
 set -e
 
@@ -36,7 +36,9 @@ save_pids() {
     mkdir -p ~/.kub-demo/pids
     echo $PROMETHEUS_PF_PID > ~/.kub-demo/pids/prometheus.pid
     echo $GRAFANA_PF_PID > ~/.kub-demo/pids/grafana.pid
-    echo $ARGOCD_PF_PID > ~/.kub-demo/pids/argocd.pid
+    if [ -n "$ARGOCD_PF_PID" ]; then
+        echo $ARGOCD_PF_PID > ~/.kub-demo/pids/argocd.pid
+    fi
     echo -e "${GREEN}Process IDs saved for background monitoring${NC}"
 }
 
@@ -65,6 +67,9 @@ check_monitoring_status() {
         if kill -0 $argocd_pid 2>/dev/null; then
             argocd_running=true
         fi
+    else
+        # If ArgoCD is not available, consider it as "running" for overall status
+        argocd_running=true
     fi
     
     return $([ "$prometheus_running" = true ] && [ "$grafana_running" = true ] && [ "$argocd_running" = true ])
@@ -75,20 +80,44 @@ case "${1:-}" in
     --status)
         echo -e "${BLUE}Checking monitoring service status...${NC}"
         if check_monitoring_status; then
-            echo -e "${GREEN}Monitoring services are running${NC}"
-            echo -e "Grafana: ${GREEN}http://localhost:$GRAFANA_PORT${NC}"
-            echo -e "Prometheus: ${GREEN}http://localhost:$PROMETHEUS_PORT${NC}"
+            echo -e "${GREEN}All monitoring services are running${NC}"
+            echo -e "${GREEN}Grafana: http://localhost:$GRAFANA_PORT${NC}"
+            echo -e "${GREEN}Prometheus: http://localhost:$PROMETHEUS_PORT${NC}"
+            if [ -f ~/.kub-demo/pids/argocd.pid ]; then
+                echo -e "${GREEN}ArgoCD: http://localhost:$ARGOCD_PORT${NC}"
+            fi
         else
-            echo -e "${RED}Monitoring services are not running${NC}"
-            echo "Use './scripts/launch-monitoring.sh' to start them"
+            echo -e "${YELLOW}Some monitoring services may not be running${NC}"
+            echo -e "Use ${GREEN}$0${NC} to start them"
+            
+            # Check individual services
+            if lsof -i :$GRAFANA_PORT &> /dev/null; then
+                echo -e "${GREEN}Grafana: http://localhost:$GRAFANA_PORT${NC}"
+            else
+                echo -e "${RED}Grafana not accessible${NC}"
+            fi
+            
+            if lsof -i :$PROMETHEUS_PORT &> /dev/null; then
+                echo -e "${GREEN}Prometheus: http://localhost:$PROMETHEUS_PORT${NC}"
+            else
+                echo -e "${RED}Prometheus not accessible${NC}"
+            fi
+            
+            if lsof -i :$ARGOCD_PORT &> /dev/null; then
+                echo -e "${GREEN}ArgoCD: http://localhost:$ARGOCD_PORT${NC}"
+            else
+                echo -e "${RED}ArgoCD not accessible${NC}"
+            fi
         fi
+        
+        echo -e "\nMonitoring services are running in background.\nUse ${GREEN}$0 --stop${NC} to terminate them."
         exit 0
         ;;
     --stop)
         echo -e "${BLUE}Stopping monitoring services...${NC}"
         cleanup
         if [ -d ~/.kub-demo/pids ]; then
-            rm -f ~/.kub-demo/pids/prometheus.pid ~/.kub-demo/pids/grafana.pid
+            rm -f ~/.kub-demo/pids/prometheus.pid ~/.kub-demo/pids/grafana.pid ~/.kub-demo/pids/argocd.pid
         fi
         echo -e "${GREEN}Monitoring services stopped${NC}"
         exit 0
@@ -143,6 +172,21 @@ if ! kubectl get svc grafana -n $NAMESPACE &> /dev/null; then
 fi
 
 echo -e "${GREEN}Monitoring services found${NC}"
+
+# Check if ArgoCD namespace and service exist
+echo -e "${BLUE}Checking ArgoCD services...${NC}"
+if kubectl get namespace $ARGOCD_NAMESPACE &> /dev/null; then
+    if kubectl get svc argocd-server -n $ARGOCD_NAMESPACE &> /dev/null; then
+        echo -e "${GREEN}ArgoCD service found${NC}"
+        ARGOCD_AVAILABLE=true
+    else
+        echo -e "${YELLOW}ArgoCD service not found in $ARGOCD_NAMESPACE namespace${NC}"
+        ARGOCD_AVAILABLE=false
+    fi
+else
+    echo -e "${YELLOW}ArgoCD namespace '$ARGOCD_NAMESPACE' not found${NC}"
+    ARGOCD_AVAILABLE=false
+fi
 
 # Check if pods are running
 echo -e "${BLUE}Checking pod status...${NC}"
@@ -208,10 +252,15 @@ echo -e "${BLUE}Starting Grafana port forwarding...${NC}"
 kubectl port-forward svc/grafana $GRAFANA_PORT:3000 -n $NAMESPACE > /dev/null 2>&1 &
 GRAFANA_PF_PID=$!
 
-# Start ArgoCD port forwarding
-echo -e "${BLUE}Starting ArgoCD port forwarding...${NC}"
-kubectl port-forward svc/argocd-server $ARGOCD_PORT:80 -n $ARGOCD_NAMESPACE > /dev/null 2>&1 &
-ARGOCD_PF_PID=$!
+# Start ArgoCD port forwarding if available
+if [ "$ARGOCD_AVAILABLE" = true ]; then
+    echo -e "${BLUE}Starting ArgoCD port forwarding...${NC}"
+    kubectl port-forward svc/argocd-server $ARGOCD_PORT:80 -n $ARGOCD_NAMESPACE > /dev/null 2>&1 &
+    ARGOCD_PF_PID=$!
+else
+    echo -e "${YELLOW}Skipping ArgoCD port forwarding (service not available)${NC}"
+    ARGOCD_PF_PID=""
+fi
 
 # Save PIDs for background monitoring
 save_pids
@@ -240,11 +289,13 @@ else
 fi
 
 # Test ArgoCD
-echo -e "${BLUE}  Testing ArgoCD...${NC}"
-if curl -s --connect-timeout 5 -k http://localhost:$ARGOCD_PORT > /dev/null; then
-    echo -e "${GREEN}  ArgoCD is accessible at http://localhost:$ARGOCD_PORT${NC}"
-else
-    echo -e "${YELLOW}  ArgoCD connection test failed (might need more time)${NC}"
+if [ "$ARGOCD_AVAILABLE" = true ]; then
+    echo -e "${BLUE}  Testing ArgoCD...${NC}"
+    if curl -s --connect-timeout 5 -k http://localhost:$ARGOCD_PORT > /dev/null; then
+        echo -e "${GREEN}  ArgoCD is accessible at http://localhost:$ARGOCD_PORT${NC}"
+    else
+        echo -e "${YELLOW}  ArgoCD connection test failed (might need more time)${NC}"
+    fi
 fi
 
 # Display access information
@@ -261,13 +312,17 @@ echo ""
 echo -e "${BLUE}Prometheus Metrics:${NC}"
 echo -e "   URL: ${GREEN}http://localhost:$PROMETHEUS_PORT${NC}"
 echo -e "   Targets: ${GREEN}http://localhost:$PROMETHEUS_PORT/targets${NC}"
-echo ""
-echo -e "${BLUE}ArgoCD GitOps:${NC}"
-echo -e "   URL: ${GREEN}http://localhost:$ARGOCD_PORT${NC}"
-echo -e "   Username: ${GREEN}admin${NC}"
-echo -n "   Password: "
-kubectl -n $ARGOCD_NAMESPACE get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" 2>/dev/null | base64 -d 2>/dev/null || echo "IXEjPVJD6O7TI3ve"
-echo
+
+if [ "$ARGOCD_AVAILABLE" = true ]; then
+    echo ""
+    echo -e "${BLUE}ArgoCD GitOps:${NC}"
+    echo -e "   URL: ${GREEN}http://localhost:$ARGOCD_PORT${NC}"
+    echo -e "   Username: ${GREEN}admin${NC}"
+    echo -n "   Password: "
+    kubectl -n $ARGOCD_NAMESPACE get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" 2>/dev/null | base64 -d 2>/dev/null || echo "IXEjPVJD6O7TI3ve"
+    echo
+fi
+
 echo -e "   Query: ${GREEN}http://localhost:$PROMETHEUS_PORT/graph${NC}"
 echo ""
 echo -e "${BLUE}Quick Actions:${NC}"
@@ -282,27 +337,25 @@ echo "   - kube_pod_info - Pod information"
 echo "   - rate(container_cpu_usage_seconds_total[5m]) - CPU usage"
 echo ""
 echo -e "${BLUE}Management Commands:${NC}"
-echo "   - Check status: ${GREEN}./scripts/launch-monitoring.sh --status${NC}"
-echo "   - Stop monitoring: ${GREEN}./scripts/launch-monitoring.sh --stop${NC}"
+echo -e "   - Check status: ${GREEN}$0 --status${NC}"
+echo -e "   - Stop monitoring: ${GREEN}$0 --stop${NC}"
 echo ""
-echo -e "${GREEN}Port forwarding is now running in the background.${NC}"
-echo -e "${YELLOW}The monitoring services will continue running after this script exits.${NC}"
+echo "Port forwarding is now running in the background."
+echo "The monitoring services will continue running after this script exits."
 echo "=================================================="
+echo ""
+echo "Open Grafana in browser? (y/N): \c"
+read response
 
-# Check if browser opening is available
-if command -v xdg-open &> /dev/null || command -v open &> /dev/null; then
-    echo ""
-    read -p "Open Grafana in browser? (y/N): " -n 1 -r
-    echo ""
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        if command -v xdg-open &> /dev/null; then
-            xdg-open "http://localhost:$GRAFANA_PORT" 2>/dev/null &
-        elif command -v open &> /dev/null; then
-            open "http://localhost:$GRAFANA_PORT" 2>/dev/null &
-        fi
-        echo -e "${GREEN}Browser opening...${NC}"
+if [[ "$response" =~ ^[Yy]$ ]]; then
+    if command -v xdg-open &> /dev/null; then
+        xdg-open "http://localhost:$GRAFANA_PORT"
+    elif command -v open &> /dev/null; then
+        open "http://localhost:$GRAFANA_PORT"
+    else
+        echo "Please open http://localhost:$GRAFANA_PORT in your browser"
     fi
 fi
 
 echo ""
-echo -e "${GREEN}Script completed. Monitoring services are running in the background.${NC}"
+echo "Script completed. Monitoring services are running in the background."
